@@ -37,6 +37,30 @@ h1{
     }
 }
 
+@media (min-width: 1024px) {
+    body {
+        font-size: 17px;
+    }
+
+    h1 {
+        font-size: 34px;
+    }
+
+    .card h2 {
+        font-size: 22px;
+    }
+
+    .card {
+        padding: 28px;
+    }
+
+    .container {
+        max-width: 1500px;
+        margin: 0 auto;
+        gap: 28px;
+    }
+}
+
 .card{
     background:#1f2937;
     padding:20px;
