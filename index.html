@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LifeOS</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <h1>認真工作，認真生活</h1>
+
+    <div class="container">
+
+        <div class="card" id="todo-card">
+            <h2>📋 今日待辦</h2>
+            <p id="todo-progress">✅: 0 / 0</p>
+
+            <div id="pending-todos-section" class="pending-section" style="display:none;">
+                <h3><span class="pending-icon">⏰</span> 昨天還有未完成的事項</h3>
+                <div id="pending-todos-list"></div>
+            </div>
+
+            <div class="todo-input-row">
+                <input id="todo-input" type="text" placeholder="新增今日任務">
+                <button id="add-todo-button" type="button">新增</button>
+            </div>
+
+            <div id="todo-list"></div>
+        </div>
+
+        <div class="card" id="goal-card">
+            <h2>📖 本週目標</h2>
+            <p id="weekly-progress">🏆: 0 / 0</p>
+
+            <div id="pending-goals-section" class="pending-section" style="display:none;">
+                <h3><span class="pending-icon">⏰</span> 上週還有未完成的目標</h3>
+                <div id="pending-goals-list"></div>
+            </div>
+
+            <div class="goal-input-row">
+                <input id="goal-input" type="text" placeholder="新增本周任務">
+                <button id="add-goal-button" type="button">新增</button>
+            </div>
+
+            <div id="goal-list"></div>
+        </div>
+        
+        <div class="card" id="reflection-card">
+            <h2>💭 今日反思</h2>
+
+            <textarea id="reflection-input" placeholder="寫下今天的反思..."></textarea>
+
+            <button id="save-reflection-button" type="button">儲存反思</button>
+
+            <p id="reflection-status"></p>
+            <div id="reflection-list"></div>
+        </div>
+
+        <div class="card" id="goal-history-card">
+            <h2>🏅 目標歷程</h2>
+            <div id="goal-history-list"></div>
+        </div>
+
+    </div>
+
+    <div id="history-modal-overlay" class="modal-overlay" style="display:none;">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h2 id="history-modal-title"></h2>
+                <button id="history-modal-close" type="button">✕</button>
+            </div>
+            <div id="history-modal-content"></div>
+        </div>
+    </div>
+
+</body>
+
+<script src="script.js"></script>
+
+</html>
