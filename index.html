@@ -11,7 +11,22 @@
 
 <body>
 
-    <h1>認真工作，認真生活</h1>
+    <h1>🫂先打造自己想過的人生，再讓 LifeOS 隨著自己一起成長。</h1>
+
+    <div id="auth-bar" class="auth-bar">
+
+        <div id="auth-logged-out" class="auth-row">
+            <input id="auth-email-input" type="email" placeholder="輸入 Email 取得登入連結">
+            <button id="auth-send-link-button" type="button">寄送登入連結</button>
+            <span id="auth-status"></span>
+        </div>
+
+        <div id="auth-logged-in" class="auth-row" style="display:none;">
+            <span id="auth-user-email"></span>
+            <button id="auth-logout-button" type="button">登出</button>
+        </div>
+
+    </div>
 
     <div class="container">
 
@@ -48,13 +63,14 @@
 
             <div id="goal-list"></div>
         </div>
-        
+
         <div class="card" id="reflection-card">
             <h2>💭 今日反思</h2>
 
-            <textarea id="reflection-input" placeholder="寫下今天的反思..."></textarea>
-
-            <button id="save-reflection-button" type="button">儲存反思</button>
+            <div class="reflection-input-row">
+                <textarea id="reflection-input" placeholder="寫下今天的反思..."></textarea>
+                <button id="save-reflection-button" type="button">儲存</button>
+            </div>
 
             <p id="reflection-status"></p>
             <div id="reflection-list"></div>
@@ -79,6 +95,7 @@
 
 </body>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="script.js"></script>
 
 </html>

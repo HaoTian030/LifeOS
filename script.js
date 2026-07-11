@@ -1,3 +1,76 @@
+// ============帳============號============登============入============
+// 這一步先只處理「登入這件事本身能不能動」，Todo/Goal/Reflection
+// 暫時還是讀寫 localStorage，之後才會一塊一塊換成讀寫 Supabase。
+const SUPABASE_URL = "https://jtnmrikpgixlqxnudxob.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_CA0WqLqcsbp7HuxZ7oS4rA_sIClhTfc";
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const authEmailInput = document.getElementById("auth-email-input");
+const authSendLinkButton = document.getElementById("auth-send-link-button");
+const authStatus = document.getElementById("auth-status");
+const authLoggedOut = document.getElementById("auth-logged-out");
+const authLoggedIn = document.getElementById("auth-logged-in");
+const authUserEmail = document.getElementById("auth-user-email");
+const authLogoutButton = document.getElementById("auth-logout-button");
+
+async function sendMagicLink() {
+  const email = authEmailInput.value.trim();
+  if (!email) return;
+
+  authStatus.innerText = "寄送中...";
+
+  const { error } = await supabaseClient.auth.signInWithOtp({
+    email: email,
+    options: {
+      emailRedirectTo: window.location.href
+    }
+  });
+
+  if (error) {
+    authStatus.innerText = `❌ ${error.message}`;
+  } else {
+    authStatus.innerText = "✅ 已寄出登入連結，請到信箱點擊連結";
+  }
+}
+
+function showLoggedIn(user) {
+  authLoggedOut.style.display = "none";
+  authLoggedIn.style.display = "flex";
+  authUserEmail.innerText = `👤 已登入：${user.email}`;
+}
+
+function showLoggedOut() {
+  authLoggedOut.style.display = "flex";
+  authLoggedIn.style.display = "none";
+  authStatus.innerText = "";
+}
+
+async function logout() {
+  await supabaseClient.auth.signOut();
+}
+
+authSendLinkButton.addEventListener("click", sendMagicLink);
+authLogoutButton.addEventListener("click", logout);
+
+// 登入狀態改變時（包含剛點完信裡連結跳轉回來的那一刻）自動更新畫面。
+supabaseClient.auth.onAuthStateChange((event, session) => {
+  if (session) {
+    showLoggedIn(session.user);
+  } else {
+    showLoggedOut();
+  }
+});
+
+// 頁面剛載入時，確認一次目前是不是已經在登入狀態。
+supabaseClient.auth.getSession().then(({ data }) => {
+  if (data.session) {
+    showLoggedIn(data.session.user);
+  } else {
+    showLoggedOut();
+  }
+});
+// ===================================================================
+
 // ============共============用============工============具============
 // 給 todos / goals / reflections 共用的讀寫邏輯：
 // 讀取時如果資料不存在或壞掉，就退回 defaultValue，不會讓整個網頁掛掉。
@@ -564,6 +637,7 @@ function saveReflection() {
   // 儲存 = 完成一個動作：清空輸入框，並立即給予儲存成功的回饋，
   // 不然使用者存了反思，畫面上完全看不出來有沒有存到。
   reflectionInput.value = "";
+  reflectionInput.style.height = "";
   reflectionStatus.innerText = `✅ 已儲存（${today}）`;
 }
 function loadReflections() {
@@ -572,24 +646,6 @@ function loadReflections() {
 function saveReflections() {
   saveToStorage("reflections", reflections);
 }
-// function renderReflections() {
-
-//     reflectionList.innerHTML = "";
-
-//     reflections.forEach(reflection => {
-
-//         const item = document.createElement("div");
-
-//         item.innerHTML =
-//             `<strong>${reflection.date}</strong>
-//             <p>${reflection.text}</p>
-//             <hr>`;
-
-//         reflectionList.appendChild(item);
-
-//     });
-
-// }
 function buildReflectionCard(reflection) {
 
     const reflectionCard = document.createElement("div");
@@ -663,17 +719,6 @@ function findTodayReflection() {
 
     return todayReflection;
 }
-// function deleteReflection() {
-//     const today = new Date().toLocaleDateString("zh-TW");
-
-//     const newReflections = reflections.filter(reflection => {
-//         return reflection.date !== today;
-//     });
-//     reflections = newReflections;
-//     reflectionCard.appendChild(deleteButton);
-//     saveReflections();
-//     renderReflections();
-// }
 function deleteReflection(id) {
 
     reflections = reflections.filter(function (reflection) {
@@ -720,6 +765,12 @@ historyModalOverlay.addEventListener("click", function (event) {
 const reflectionList = document.getElementById("reflection-list");
 const reflectionStatus = document.getElementById("reflection-status");
 const saveReflectionButton = document.getElementById("save-reflection-button");
+// 拿掉手動拉伸後，改成自動長高：文字打到超過目前高度，框框就自動往下擴展。
+function autoGrowReflectionInput() {
+  reflectionInput.style.height = "auto";
+  reflectionInput.style.height = reflectionInput.scrollHeight + "px";
+}
+reflectionInput.addEventListener("input", autoGrowReflectionInput);
 
 saveReflectionButton.addEventListener("click", saveReflection);
 // ===================================================================
