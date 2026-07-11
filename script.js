@@ -9,47 +9,80 @@ const authEmailInput = document.getElementById("auth-email-input");
 const authSendLinkButton = document.getElementById("auth-send-link-button");
 const authStatus = document.getElementById("auth-status");
 const authLoggedOut = document.getElementById("auth-logged-out");
+const authOtpRow = document.getElementById("auth-otp-row");
+const authOtpInput = document.getElementById("auth-otp-input");
+const authVerifyOtpButton = document.getElementById("auth-verify-otp-button");
 const authLoggedIn = document.getElementById("auth-logged-in");
 const authUserEmail = document.getElementById("auth-user-email");
 const authLogoutButton = document.getElementById("auth-logout-button");
 
-async function sendMagicLink() {
+// 記著剛剛是對哪個 email 寄的驗證碼，等一下驗證那一步要用。
+let pendingAuthEmail = "";
+
+async function sendOtp() {
   const email = authEmailInput.value.trim();
   if (!email) return;
 
   authStatus.innerText = "寄送中...";
 
+  // 這裡刻意不傳 emailRedirectTo：一旦不指定跳轉網址，
+  // Supabase 就會寄「純驗證碼」的信，而不是「點擊連結」的信。
   const { error } = await supabaseClient.auth.signInWithOtp({
-    email: email,
-    options: {
-      emailRedirectTo: window.location.href
-    }
+    email: email
   });
 
   if (error) {
     authStatus.innerText = `❌ ${error.message}`;
-  } else {
-    authStatus.innerText = "✅ 已寄出登入連結，請到信箱點擊連結";
+    return;
   }
+
+  pendingAuthEmail = email;
+  authLoggedOut.style.display = "none";
+  authOtpRow.style.display = "flex";
+  authStatus.innerText = "✅ 驗證碼已寄出，請到信箱查收";
+}
+
+async function verifyOtp() {
+  const code = authOtpInput.value.trim();
+  if (!code) return;
+
+  authStatus.innerText = "驗證中...";
+
+  const { error } = await supabaseClient.auth.verifyOtp({
+    email: pendingAuthEmail,
+    token: code,
+    type: "email"
+  });
+
+  if (error) {
+    authStatus.innerText = `❌ ${error.message}`;
+  }
+  // 驗證成功的話，onAuthStateChange 會自動接手切換畫面，這裡不用另外處理。
 }
 
 function showLoggedIn(user) {
   authLoggedOut.style.display = "none";
+  authOtpRow.style.display = "none";
   authLoggedIn.style.display = "flex";
   authUserEmail.innerText = `👤 已登入：${user.email}`;
+  authStatus.innerText = "";
 }
 
 function showLoggedOut() {
   authLoggedOut.style.display = "flex";
+  authOtpRow.style.display = "none";
   authLoggedIn.style.display = "none";
   authStatus.innerText = "";
+  authOtpInput.value = "";
+  pendingAuthEmail = "";
 }
 
 async function logout() {
   await supabaseClient.auth.signOut();
 }
 
-authSendLinkButton.addEventListener("click", sendMagicLink);
+authSendLinkButton.addEventListener("click", sendOtp);
+authVerifyOtpButton.addEventListener("click", verifyOtp);
 authLogoutButton.addEventListener("click", logout);
 
 // 登入狀態改變時（包含剛點完信裡連結跳轉回來的那一刻）自動更新畫面。
@@ -646,6 +679,24 @@ function loadReflections() {
 function saveReflections() {
   saveToStorage("reflections", reflections);
 }
+// function renderReflections() {
+
+//     reflectionList.innerHTML = "";
+
+//     reflections.forEach(reflection => {
+
+//         const item = document.createElement("div");
+
+//         item.innerHTML =
+//             `<strong>${reflection.date}</strong>
+//             <p>${reflection.text}</p>
+//             <hr>`;
+
+//         reflectionList.appendChild(item);
+
+//     });
+
+// }
 function buildReflectionCard(reflection) {
 
     const reflectionCard = document.createElement("div");
@@ -719,6 +770,17 @@ function findTodayReflection() {
 
     return todayReflection;
 }
+// function deleteReflection() {
+//     const today = new Date().toLocaleDateString("zh-TW");
+
+//     const newReflections = reflections.filter(reflection => {
+//         return reflection.date !== today;
+//     });
+//     reflections = newReflections;
+//     reflectionCard.appendChild(deleteButton);
+//     saveReflections();
+//     renderReflections();
+// }
 function deleteReflection(id) {
 
     reflections = reflections.filter(function (reflection) {
