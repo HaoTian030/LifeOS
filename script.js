@@ -19,6 +19,10 @@ const authLogoutButton = document.getElementById("auth-logout-button");
 // 記著剛剛是對哪個 email 寄的驗證碼，等一下驗證那一步要用。
 let pendingAuthEmail = "";
 
+// 目前登入的使用者。null 代表未登入（示範模式），
+// 有值代表已登入（雲端模式，Todo 資料讀寫 Supabase）。
+let currentUser = null;
+
 async function sendOtp() {
   const email = authEmailInput.value.trim();
   if (!email) return;
@@ -66,6 +70,7 @@ function showLoggedIn(user) {
   authLoggedIn.style.display = "flex";
   authUserEmail.innerText = `👤 已登入：${user.email}`;
   authStatus.innerText = "";
+  initTodosForUser(user);
 }
 
 function showLoggedOut() {
@@ -75,6 +80,7 @@ function showLoggedOut() {
   authStatus.innerText = "";
   authOtpInput.value = "";
   pendingAuthEmail = "";
+  initTodosForGuest();
 }
 
 async function logout() {
@@ -122,51 +128,175 @@ function saveToStorage(key, value) {
 // ===================================================================
 
 // ============今============日============代============辦============
-function loadTodos() {
-  todos = loadFromStorage("todos", []);
-}
-function saveTodos() {
-  saveToStorage("todos", todos);
-}
-function loadPendingTodos() {
-  pendingTodos = loadFromStorage("pendingTodos", []);
-}
-function savePendingTodos() {
-  saveToStorage("pendingTodos", pendingTodos);
-}
-function loadTotalCompletedTodos() {
-  totalCompletedTodos = loadFromStorage("totalCompletedTodos", 0);
-}
-function saveTotalCompletedTodos() {
-  saveToStorage("totalCompletedTodos", totalCompletedTodos);
-}
-// 檢查今天日期是否跟上次不同：
-// 不同的話，今天代辦清單重新開始，未完成的項目搬進「待處理」等你決定，
-// 已完成的項目直接捨棄（完成次數已經算進 totalCompletedTodos，不用再保留）。
-function checkTodoDayRollover() {
-  const today = new Date().toLocaleDateString("zh-TW");
-  const lastDate = loadFromStorage("lastTodoDate", today);
+// 這一塊已改成讀寫 Supabase 的 todos 表（登入後）；
+// 未登入時走「示範模式」，只在記憶體裡操作，重新整理就恢復原狀，
+// 不會寫進 localStorage 也不會寫進 Supabase。
 
-  if (lastDate !== today) {
-    const stillUnfinished = todos.filter(todo => !todo.done);
-    pendingTodos = pendingTodos.concat(stillUnfinished);
-    todos = [];
-    saveTodos();
-    savePendingTodos();
+// 示範模式用的固定範例資料，只是給還沒登入的人看畫面長相用。
+const DEMO_TODOS = [
+  { id: "demo-1", text: "範例：新增你的第一個待辦", done: false },
+  { id: "demo-2", text: "範例：完成後打勾看看效果", done: true }
+];
+
+function todayDateString() {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+// 確認這位使用者在 user_stats 有沒有自己的一筆資料，沒有就先建立一筆。
+async function ensureUserStatsRow() {
+  const { data, error } = await supabaseClient
+    .from("user_stats")
+    .select("*")
+    .eq("user_id", currentUser.id)
+    .maybeSingle();
+
+  if (error) {
+    console.log("讀取 user_stats 失敗", error);
+    return;
   }
 
-  saveToStorage("lastTodoDate", today);
+  if (!data) {
+    await supabaseClient.from("user_stats").insert({
+      user_id: currentUser.id,
+      total_completed_todos: 0,
+      total_completed_goals: 0,
+      last_todo_date: todayDateString()
+    });
+    totalCompletedTodos = 0;
+  } else {
+    totalCompletedTodos = data.total_completed_todos;
+  }
 }
+
+// 檢查今天日期是否跟 user_stats 記錄的上次不同：
+// 不同的話，還在 active 但未完成的項目改成 pending 狀態等使用者決定，
+// 已完成的項目直接刪除（完成次數已經算進 total_completed_todos，不用再保留列）。
+async function checkTodoDayRolloverCloud() {
+  const today = todayDateString();
+
+  const { data: stats } = await supabaseClient
+    .from("user_stats")
+    .select("last_todo_date")
+    .eq("user_id", currentUser.id)
+    .maybeSingle();
+
+  const lastDate = stats && stats.last_todo_date ? stats.last_todo_date : today;
+
+  if (lastDate !== today) {
+    const { data: activeTodos, error } = await supabaseClient
+      .from("todos")
+      .select("*")
+      .eq("user_id", currentUser.id)
+      .eq("status", "active");
+
+    if (!error && activeTodos) {
+      const unfinishedIds = activeTodos.filter(t => !t.done).map(t => t.id);
+      const finishedIds = activeTodos.filter(t => t.done).map(t => t.id);
+
+      if (unfinishedIds.length > 0) {
+        await supabaseClient
+          .from("todos")
+          .update({ status: "pending" })
+          .in("id", unfinishedIds);
+      }
+      if (finishedIds.length > 0) {
+        await supabaseClient
+          .from("todos")
+          .delete()
+          .in("id", finishedIds);
+      }
+    }
+
+    await supabaseClient
+      .from("user_stats")
+      .update({ last_todo_date: today })
+      .eq("user_id", currentUser.id);
+  }
+}
+
+async function loadTodosFromSupabase() {
+  const { data, error } = await supabaseClient
+    .from("todos")
+    .select("*")
+    .eq("user_id", currentUser.id)
+    .eq("status", "active")
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.log("讀取待辦失敗", error);
+    todos = [];
+    return;
+  }
+
+  todos = data.map(row => ({ id: row.id, text: row.text, done: row.done }));
+}
+
+async function loadPendingTodosFromSupabase() {
+  const { data, error } = await supabaseClient
+    .from("todos")
+    .select("*")
+    .eq("user_id", currentUser.id)
+    .eq("status", "pending")
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.log("讀取待處理代辦失敗", error);
+    pendingTodos = [];
+    return;
+  }
+
+  pendingTodos = data.map(row => ({ id: row.id, text: row.text, done: row.done }));
+}
+
+// 登入成功後：先確保 user_stats 有資料、檢查跨天，再把雲端資料載入畫面。
+async function initTodosForUser(user) {
+  currentUser = user;
+  await ensureUserStatsRow();
+  await checkTodoDayRolloverCloud();
+  await loadTodosFromSupabase();
+  await loadPendingTodosFromSupabase();
+  renderTodos();
+  renderPendingTodos();
+  updatePlayerPanel();
+}
+
+// 未登入：套用示範資料，純記憶體操作，不寫入任何地方。
+function initTodosForGuest() {
+  currentUser = null;
+  todos = DEMO_TODOS.map(item => ({ id: item.id, text: item.text, done: item.done }));
+  pendingTodos = [];
+  totalCompletedTodos = todos.filter(todo => todo.done).length;
+  renderTodos();
+  renderPendingTodos();
+  updatePlayerPanel();
+}
+
 function refreshTodos() {
-  saveTodos();
   renderTodos();
   updatePlayerPanel();
 }
-function removeFromPending(id) {
+
+// options.deleteRemote：true 代表這筆待處理代辦要在 Supabase 裡徹底刪除
+// （放棄、或加入本週目標而不再是 Todo）；false 代表資料庫端已經處理好狀態
+// （例如延到今天已經把 status 改回 active），這裡只需要更新畫面上的清單。
+async function removeFromPending(id, options) {
+  const shouldDeleteRemote = !!(options && options.deleteRemote);
+
+  if (currentUser && shouldDeleteRemote) {
+    const { error } = await supabaseClient.from("todos").delete().eq("id", id);
+    if (error) {
+      console.log("移除待處理代辦失敗", error);
+      return;
+    }
+  }
+
   pendingTodos = pendingTodos.filter(function (item) {
     return item.id !== id;
   });
-  savePendingTodos();
   renderPendingTodos();
 }
 function renderPendingTodos() {
@@ -188,26 +318,37 @@ function renderPendingTodos() {
     const toTodayButton = document.createElement("button");
     toTodayButton.type = "button";
     toTodayButton.innerText = "延到今天";
-    toTodayButton.addEventListener("click", function () {
-      todos.push({ id: Date.now(), text: item.text, done: false });
-      removeFromPending(item.id);
+    toTodayButton.addEventListener("click", async function () {
+      if (currentUser) {
+        const { error } = await supabaseClient
+          .from("todos")
+          .update({ status: "active" })
+          .eq("id", item.id);
+        if (error) {
+          console.log("延到今天失敗", error);
+          return;
+        }
+      }
+      todos.push({ id: item.id, text: item.text, done: false });
+      await removeFromPending(item.id, { deleteRemote: false });
       refreshTodos();
     });
 
     const toGoalButton = document.createElement("button");
     toGoalButton.type = "button";
     toGoalButton.innerText = "加入本週目標";
-    toGoalButton.addEventListener("click", function () {
+    toGoalButton.addEventListener("click", async function () {
+      // Goal 這階段仍是 localStorage（尚未換 Supabase），維持原本寫法。
       goals.push({ text: item.text, done: false });
-      removeFromPending(item.id);
+      await removeFromPending(item.id, { deleteRemote: true });
       refreshGoals();
     });
 
     const dropButton = document.createElement("button");
     dropButton.type = "button";
     dropButton.innerText = "放棄";
-    dropButton.addEventListener("click", function () {
-      removeFromPending(item.id);
+    dropButton.addEventListener("click", async function () {
+      await removeFromPending(item.id, { deleteRemote: true });
     });
 
     pendingItem.appendChild(text);
@@ -228,15 +369,36 @@ function renderTodos() {
     checkbox.type = "checkbox";
     checkbox.checked = todo.done;
 
-    checkbox.addEventListener("change",function () {
-      if (checkbox.checked && !todo.done) {
-        totalCompletedTodos++;
-        saveTotalCompletedTodos();
-      } else if (!checkbox.checked && todo.done) {
-        totalCompletedTodos--;
-        saveTotalCompletedTodos();
+    checkbox.addEventListener("change", async function () {
+      const newDone = checkbox.checked;
+
+      if (currentUser) {
+        const { error } = await supabaseClient
+          .from("todos")
+          .update({ done: newDone })
+          .eq("id", todo.id);
+
+        if (error) {
+          console.log("更新待辦狀態失敗", error);
+          checkbox.checked = todo.done; // 失敗就復原畫面上的勾選狀態
+          return;
+        }
       }
-      todo.done = checkbox.checked;
+
+      if (newDone && !todo.done) {
+        totalCompletedTodos++;
+      } else if (!newDone && todo.done) {
+        totalCompletedTodos--;
+      }
+
+      if (currentUser) {
+        await supabaseClient
+          .from("user_stats")
+          .update({ total_completed_todos: totalCompletedTodos })
+          .eq("user_id", currentUser.id);
+      }
+
+      todo.done = newDone;
       refreshTodos();
     });
 
@@ -259,21 +421,49 @@ function renderTodos() {
 
 updateTodoProgress();
 }
-function addTodo() {
+async function addTodo() {
   const newTodoText = todoInput.value.trim();
 
   if (newTodoText === "") return;
 
-  todos.push({
-    id: Date.now(),
-    text: newTodoText,
-    done: false
-  });
+  if (currentUser) {
+    const { data, error } = await supabaseClient
+      .from("todos")
+      .insert({
+        user_id: currentUser.id,
+        text: newTodoText,
+        done: false,
+        status: "active"
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.log("新增待辦失敗", error);
+      return;
+    }
+
+    todos.push({ id: data.id, text: data.text, done: data.done });
+  } else {
+    todos.push({
+      id: `demo-${Date.now()}`,
+      text: newTodoText,
+      done: false
+    });
+  }
 
   todoInput.value = "";
   refreshTodos();
 }
-function deleteTodo(id) {
+async function deleteTodo(id) {
+
+  if (currentUser) {
+    const { error } = await supabaseClient.from("todos").delete().eq("id", id);
+    if (error) {
+      console.log("刪除待辦失敗", error);
+      return;
+    }
+  }
 
   todos = todos.filter(function (todo) {
 
@@ -679,24 +869,6 @@ function loadReflections() {
 function saveReflections() {
   saveToStorage("reflections", reflections);
 }
-// function renderReflections() {
-
-//     reflectionList.innerHTML = "";
-
-//     reflections.forEach(reflection => {
-
-//         const item = document.createElement("div");
-
-//         item.innerHTML =
-//             `<strong>${reflection.date}</strong>
-//             <p>${reflection.text}</p>
-//             <hr>`;
-
-//         reflectionList.appendChild(item);
-
-//     });
-
-// }
 function buildReflectionCard(reflection) {
 
     const reflectionCard = document.createElement("div");
@@ -770,17 +942,6 @@ function findTodayReflection() {
 
     return todayReflection;
 }
-// function deleteReflection() {
-//     const today = new Date().toLocaleDateString("zh-TW");
-
-//     const newReflections = reflections.filter(reflection => {
-//         return reflection.date !== today;
-//     });
-//     reflections = newReflections;
-//     reflectionCard.appendChild(deleteButton);
-//     saveReflections();
-//     renderReflections();
-// }
 function deleteReflection(id) {
 
     reflections = reflections.filter(function (reflection) {
@@ -855,12 +1016,12 @@ function updatePlayerPanel() {
       healthScore = healthScore + 30;
     }
 
-  playerLevel.innerText =  `等級: Lv.${level}`;
-  playerExp.innerText = `經驗值：${currentLevelExp} / 100 EXP`;
-  expProgress.style.width = `${currentLevelExp}%`;
-  wealthStat.innerText = `財富：儲蓄率 ${savingRate}%`;
-  healthStat.innerText = `健康：${healthScore} / 100`;
-  goalStat.innerText = `目標：${completedGoals} / ${totalGoals}`;
+  if (playerLevel) playerLevel.innerText = `等級: Lv.${level}`;
+  if (playerExp) playerExp.innerText = `經驗值：${currentLevelExp} / 100 EXP`;
+  if (expProgress) expProgress.style.width = `${currentLevelExp}%`;
+  if (wealthStat) wealthStat.innerText = `財富：儲蓄率 ${savingRate}%`;
+  if (healthStat) healthStat.innerText = `健康：${healthScore} / 100`;
+  if (goalStat) goalStat.innerText = `目標：${completedGoals} / ${totalGoals}`;
 }
 const playerLevel = document.getElementById("player-level");
 const playerExp = document.getElementById("player-exp");
@@ -882,12 +1043,21 @@ const totalAsset = finance.cash + finance.investment + finance.crypto;
 const saving = finance.income - finance.expense;
 const savingRate = ((saving / finance.income) * 100).toFixed(1);
 
-document.getElementById("cash").innerText = `💵 現金：$${finance.cash}`;
-document.getElementById("investment").innerText = `💹 股票：$${finance.investment}`;
-document.getElementById("crypto").innerText = `🪙 加密貨幣：$${finance.crypto}`;
-document.getElementById("income").innerText = `🏧 收入：$${finance.income}`;
-document.getElementById("expense").innerText = `🧾 支出：$${finance.expense}`;
-document.getElementById("finance").innerText = `💰 總資產：$${totalAsset}`;
+// 加上元素存在檢查：如果這張卡片沒出現在目前這份 HTML 裡（例如朋友測試版只留 4 張卡），
+// 就跳過不寫，避免整支 script 因為 null.innerText 而中斷，影響到後面 Todo/Goal/Reflection 的初始化。
+function setTextIfExists(elementId, text) {
+  const element = document.getElementById(elementId);
+  if (element) {
+    element.innerText = text;
+  }
+}
+
+setTextIfExists("cash", `💵 現金：$${finance.cash}`);
+setTextIfExists("investment", `💹 股票：$${finance.investment}`);
+setTextIfExists("crypto", `🪙 加密貨幣：$${finance.crypto}`);
+setTextIfExists("income", `🏧 收入：$${finance.income}`);
+setTextIfExists("expense", `🧾 支出：$${finance.expense}`);
+setTextIfExists("finance", `💰 總資產：$${totalAsset}`);
 // ===================================================================
 
 // ============健============康============面============板============
@@ -899,12 +1069,8 @@ const health = {
 // ===================================================================
 // LifeOS 初始化
 // ===================================================================
-loadTodos();
-loadPendingTodos();
-loadTotalCompletedTodos();
-checkTodoDayRollover();
-renderTodos();
-renderPendingTodos();
+// Todo 初始化改由登入狀態決定（見上方 onAuthStateChange／getSession），
+// 這裡不再呼叫舊的 localStorage 版本。
 loadGoals();
 loadPendingGoals();
 loadTotalCompletedGoals();
@@ -918,8 +1084,3 @@ loadReflections();
 loadReflection();
 renderReflections();
 updatePlayerPanel();
-
-//alert() 及 console.log()  可以協助自己來找出問題
-// alert("LifeOS啟動成功");
-// console.log("checkbox數量:", checkboxes.length);
-// console.log("progress物件:", progress);
