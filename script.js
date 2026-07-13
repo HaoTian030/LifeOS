@@ -64,13 +64,14 @@ async function verifyOtp() {
   // 驗證成功的話，onAuthStateChange 會自動接手切換畫面，這裡不用另外處理。
 }
 
-function showLoggedIn(user) {
+async function showLoggedIn(user) {
   authLoggedOut.style.display = "none";
   authOtpRow.style.display = "none";
   authLoggedIn.style.display = "flex";
   authUserEmail.innerText = `👤 已登入：${user.email}`;
   authStatus.innerText = "";
-  initTodosForUser(user);
+  await initTodosForUser(user);
+  await initGoalsForUser();
 }
 
 function showLoggedOut() {
@@ -81,6 +82,7 @@ function showLoggedOut() {
   authOtpInput.value = "";
   pendingAuthEmail = "";
   initTodosForGuest();
+  initGoalsForGuest();
 }
 
 async function logout() {
@@ -146,7 +148,19 @@ function todayDateString() {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+// 算出「本週週日」的日期字串（ISO 格式，跟 Supabase 的 date 欄位比對用）。
+function thisSundayDateString() {
+  const now = new Date();
+  const dayOfWeek = now.getDay(); // 0 = 週日
+  const sunday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek);
+  const yyyy = sunday.getFullYear();
+  const mm = String(sunday.getMonth() + 1).padStart(2, "0");
+  const dd = String(sunday.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 // 確認這位使用者在 user_stats 有沒有自己的一筆資料，沒有就先建立一筆。
+// Todo／Goal 共用同一筆 user_stats，所以這裡一次把兩邊的初始值都準備好。
 async function ensureUserStatsRow() {
   const { data, error } = await supabaseClient
     .from("user_stats")
@@ -164,11 +178,14 @@ async function ensureUserStatsRow() {
       user_id: currentUser.id,
       total_completed_todos: 0,
       total_completed_goals: 0,
-      last_todo_date: todayDateString()
+      last_todo_date: todayDateString(),
+      last_goal_week_start: thisSundayDateString()
     });
     totalCompletedTodos = 0;
+    totalCompletedGoals = 0;
   } else {
     totalCompletedTodos = data.total_completed_todos;
+    totalCompletedGoals = data.total_completed_goals;
   }
 }
 
@@ -338,8 +355,38 @@ function renderPendingTodos() {
     toGoalButton.type = "button";
     toGoalButton.innerText = "加入本週目標";
     toGoalButton.addEventListener("click", async function () {
-      // Goal 這階段仍是 localStorage（尚未換 Supabase），維持原本寫法。
-      goals.push({ text: item.text, done: false });
+      if (currentUser) {
+        const { data, error } = await supabaseClient
+          .from("goals")
+          .insert({
+            user_id: currentUser.id,
+            text: item.text,
+            done: false,
+            status: "active"
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.log("加入本週目標失敗", error);
+          return;
+        }
+
+        goals.push({
+          id: data.id,
+          text: data.text,
+          done: data.done,
+          counted: data.counted,
+          completedDate: data.completed_date
+        });
+      } else {
+        goals.push({
+          id: `demo-goal-${Date.now()}`,
+          text: item.text,
+          done: false,
+          counted: false
+        });
+      }
       await removeFromPending(item.id, { deleteRemote: true });
       refreshGoals();
     });
@@ -536,113 +583,185 @@ document.addEventListener("visibilitychange", function () {
 // ===================================================================
 
 // ============本============週============目============標============
-function loadGoals() {
-  goals = loadFromStorage("goals", [
-    { id: 1, text: "初始階段1:打造建立 LifeOS 系統", done: false },
-    { id: 2, text: "初始階段2:整理想法及方向", done: false },
-    { id: 3, text: "初始階段3:優化構造及LifeOS", done: false },
-    { id: 4, text: "成熟階段1:持續打造LifeOS及時續優化", done: false },
-    { id: 5, text: "成熟階段2:提供親友試用及試錯調整", done: false },
-    { id: 6, text: "未來主線1:LifeOS 歷史紀錄系統(可將資料封存)", done: false },
-    { id: 7, text: "未來主線2:將打造 LifeOS 歷程拍成一部小影片", done: false },
-    { id: 8, text: "未來主線3:分享他人使用 LifeOS", done: false }
-  ]);
+// 這一塊已改成讀寫 Supabase 的 goals 表（登入後），用 status 欄位
+// （active/pending/history）區分本週目標／待處理／歷程三種狀態；
+// 未登入時走「示範模式」，只在記憶體裡操作，重新整理就恢復原狀。
+
+// 示範模式用的固定範例資料，沿用原本當作預設值的那組介紹性任務。
+const DEMO_GOALS = [
+  { id: "demo-goal-1", text: "範例：打造建立 LifeOS 系統", done: false },
+  { id: "demo-goal-2", text: "範例：整理想法及方向", done: true }
+];
+
+async function loadGoalsFromSupabase() {
+  const { data, error } = await supabaseClient
+    .from("goals")
+    .select("*")
+    .eq("user_id", currentUser.id)
+    .eq("status", "active")
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.log("讀取本週目標失敗", error);
+    goals = [];
+    return;
+  }
+
+  goals = data.map(row => ({
+    id: row.id,
+    text: row.text,
+    done: row.done,
+    counted: row.counted,
+    completedDate: row.completed_date
+  }));
 }
-function saveGoals() {
-  saveToStorage("goals", goals);
+
+async function loadPendingGoalsFromSupabase() {
+  const { data, error } = await supabaseClient
+    .from("goals")
+    .select("*")
+    .eq("user_id", currentUser.id)
+    .eq("status", "pending")
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.log("讀取待處理目標失敗", error);
+    pendingGoals = [];
+    return;
+  }
+
+  pendingGoals = data.map(row => ({ id: row.id, text: row.text, done: row.done }));
 }
-function loadPendingGoals() {
-  pendingGoals = loadFromStorage("pendingGoals", []);
+
+async function loadGoalHistoryFromSupabase() {
+  const { data, error } = await supabaseClient
+    .from("goals")
+    .select("*")
+    .eq("user_id", currentUser.id)
+    .eq("status", "history")
+    .order("completed_date", { ascending: true });
+
+  if (error) {
+    console.log("讀取目標歷程失敗", error);
+    goalHistory = [];
+    return;
+  }
+
+  goalHistory = data.map(row => ({ id: row.id, text: row.text, completedDate: row.completed_date }));
 }
-function savePendingGoals() {
-  saveToStorage("pendingGoals", pendingGoals);
-}
-function loadTotalCompletedGoals() {
-  totalCompletedGoals = loadFromStorage("totalCompletedGoals", 0);
-}
-function saveTotalCompletedGoals() {
-  saveToStorage("totalCompletedGoals", totalCompletedGoals);
-}
-function loadGoalHistory() {
-  goalHistory = loadFromStorage("goalHistory", []);
-}
-function saveGoalHistory() {
-  saveToStorage("goalHistory", goalHistory);
-}
-// 算出「本週週日」的日期字串，當作這一週的身分證字號。
-// 只要這個字串跟上次記錄的不一樣，就代表跨週了。
-function getThisSundayDate() {
-  const now = new Date();
-  const dayOfWeek = now.getDay(); // 0 = 週日
-  const sunday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek);
-  return sunday.toLocaleDateString("zh-TW");
-}
-// 檢查是否跨週：跨週的話，完成的目標連同完成日期一起搬進 goalHistory 永久保留，
-// 未完成的目標搬進 pendingGoals 等你決定去留，本週目標清單重新開始。
-function checkGoalWeekRollover() {
-  const thisSunday = getThisSundayDate();
-  const lastSunday = loadFromStorage("lastGoalWeekStart", thisSunday);
+
+// 檢查是否跨週：跨週的話，完成的目標搬進 history 狀態永久保留，
+// 未完成的目標搬進 pending 狀態等使用者決定去留。
+async function checkGoalWeekRolloverCloud() {
+  const thisSunday = thisSundayDateString();
+
+  const { data: stats } = await supabaseClient
+    .from("user_stats")
+    .select("last_goal_week_start")
+    .eq("user_id", currentUser.id)
+    .maybeSingle();
+
+  const lastSunday = stats && stats.last_goal_week_start ? stats.last_goal_week_start : thisSunday;
 
   if (lastSunday !== thisSunday) {
-    const today = new Date().toLocaleDateString("zh-TW");
+    const today = todayDateString();
 
-    goals.forEach(function (goal, index) {
-      if (!goal.id) {
-        // 相容舊資料：之前存的目標沒有 id，這裡補一個，
-        // 確保待處理清單之後能正確辨識「是哪一筆」。
-        goal.id = Date.now() + index;
+    const { data: activeGoals, error } = await supabaseClient
+      .from("goals")
+      .select("*")
+      .eq("user_id", currentUser.id)
+      .eq("status", "active");
+
+    if (!error && activeGoals) {
+      const doneIds = activeGoals.filter(g => g.done).map(g => g.id);
+      const undoneIds = activeGoals.filter(g => !g.done).map(g => g.id);
+      const doneMissingDateIds = activeGoals
+        .filter(g => g.done && !g.completed_date)
+        .map(g => g.id);
+
+      if (doneMissingDateIds.length > 0) {
+        // 理論上打勾當下就會記錄 completed_date，這裡只是保險：
+        // 萬一有漏記的舊資料，跨週時用今天補上，避免留空值。
+        await supabaseClient
+          .from("goals")
+          .update({ completed_date: today })
+          .in("id", doneMissingDateIds);
       }
-      if (goal.done) {
-        goalHistory.push({
-          id: goal.id,
-          text: goal.text,
-          completedDate: goal.completedDate || today
-        });
-      } else {
-        pendingGoals.push(goal);
+      if (doneIds.length > 0) {
+        await supabaseClient
+          .from("goals")
+          .update({ status: "history" })
+          .in("id", doneIds);
       }
-    });
-
-    goals = [];
-    saveGoals();
-    saveGoalHistory();
-    savePendingGoals();
-  }
-
-  saveToStorage("lastGoalWeekStart", thisSunday);
-}
-// 一次性遷移：把「已完成、但從沒被計數器算過」的舊資料補記進去。
-// 之後每個目標一旦被算過就會標記 counted=true，這段邏輯自然只會對每筆資料生效一次。
-function migrateLegacyCompletedGoals() {
-  let changed = false;
-
-  goals.forEach(function (goal) {
-    if (goal.done && !goal.counted) {
-      totalCompletedGoals++;
-      goal.counted = true;
-      if (!goal.completedDate) {
-        // 沒辦法知道當初確切的完成日期，先用今天代替。
-        goal.completedDate = new Date().toLocaleDateString("zh-TW");
+      if (undoneIds.length > 0) {
+        await supabaseClient
+          .from("goals")
+          .update({ status: "pending" })
+          .in("id", undoneIds);
       }
-      changed = true;
     }
-  });
 
-  if (changed) {
-    saveGoals();
-    saveTotalCompletedGoals();
+    await supabaseClient
+      .from("user_stats")
+      .update({ last_goal_week_start: thisSunday })
+      .eq("user_id", currentUser.id);
   }
 }
+
+// 登入成功後：user_stats 已經在 ensureUserStatsRow 準備好，
+// 這裡先檢查跨週，再把雲端資料載入畫面。
+async function initGoalsForUser() {
+  await checkGoalWeekRolloverCloud();
+  await loadGoalsFromSupabase();
+  await loadPendingGoalsFromSupabase();
+  await loadGoalHistoryFromSupabase();
+  renderGoals();
+  renderPendingGoals();
+  renderGoalHistory();
+  updatePlayerPanel();
+}
+
+// 未登入：套用示範資料，純記憶體操作，不寫入任何地方。
+// 目標歷程未登入時不顯示示範資料，改在 renderGoalHistory 顯示提示文字。
+function initGoalsForGuest() {
+  goals = DEMO_GOALS.map(item => ({
+    id: item.id,
+    text: item.text,
+    done: item.done,
+    counted: !!item.done,
+    completedDate: undefined
+  }));
+  pendingGoals = [];
+  totalCompletedGoals = goals.filter(goal => goal.done).length;
+  goalHistory = [];
+  renderGoals();
+  renderPendingGoals();
+  renderGoalHistory();
+  updatePlayerPanel();
+}
+
 function refreshGoals() {
-  saveGoals();
   renderGoals();
   updatePlayerPanel();
 }
-function removeFromPendingGoals(id) {
+
+// options.deleteRemote：true 代表這筆待處理目標要在 Supabase 裡徹底刪除（放棄）；
+// false 代表資料庫端已經處理好狀態（例如繼續保留已經把 status 改回 active），
+// 這裡只需要更新畫面上的清單。
+async function removeFromPendingGoals(id, options) {
+  const shouldDeleteRemote = !!(options && options.deleteRemote);
+
+  if (currentUser && shouldDeleteRemote) {
+    const { error } = await supabaseClient.from("goals").delete().eq("id", id);
+    if (error) {
+      console.log("移除待處理目標失敗", error);
+      return;
+    }
+  }
+
   pendingGoals = pendingGoals.filter(function (item) {
     return item.id !== id;
   });
-  savePendingGoals();
   renderPendingGoals();
 }
 function renderPendingGoals() {
@@ -664,17 +783,27 @@ function renderPendingGoals() {
     const keepButton = document.createElement("button");
     keepButton.type = "button";
     keepButton.innerText = "繼續保留";
-    keepButton.addEventListener("click", function () {
-      goals.push({ id: item.id, text: item.text, done: false });
-      removeFromPendingGoals(item.id);
+    keepButton.addEventListener("click", async function () {
+      if (currentUser) {
+        const { error } = await supabaseClient
+          .from("goals")
+          .update({ status: "active" })
+          .eq("id", item.id);
+        if (error) {
+          console.log("繼續保留失敗", error);
+          return;
+        }
+      }
+      goals.push({ id: item.id, text: item.text, done: false, counted: false });
+      await removeFromPendingGoals(item.id, { deleteRemote: false });
       refreshGoals();
     });
 
     const dropButton = document.createElement("button");
     dropButton.type = "button";
     dropButton.innerText = "放棄";
-    dropButton.addEventListener("click", function () {
-      removeFromPendingGoals(item.id);
+    dropButton.addEventListener("click", async function () {
+      await removeFromPendingGoals(item.id, { deleteRemote: true });
     });
 
     pendingItem.appendChild(text);
@@ -703,6 +832,13 @@ function buildGoalHistoryCard(item) {
 }
 function renderGoalHistory() {
   goalHistoryList.innerHTML = "";
+
+  if (!currentUser) {
+    const hint = document.createElement("p");
+    hint.textContent = "登入後即可查看你的目標歷程紀錄。";
+    goalHistoryList.appendChild(hint);
+    return;
+  }
 
   const sortedHistory = goalHistory.slice().reverse();
 
@@ -743,21 +879,50 @@ function renderGoals() {
     checkbox.type = "checkbox";
     checkbox.checked = goal.done;
 
-    checkbox.addEventListener("change", () => {
-      if (checkbox.checked && !goal.counted) {
+    checkbox.addEventListener("change", async () => {
+      const newDone = checkbox.checked;
+      const today = todayDateString();
+
+      if (currentUser) {
+        const updatePayload = { done: newDone };
+        if (newDone && !goal.counted) {
+          updatePayload.counted = true;
+          updatePayload.completed_date = today;
+        } else if (!newDone && goal.counted) {
+          updatePayload.counted = false;
+          updatePayload.completed_date = null;
+        }
+
+        const { error } = await supabaseClient
+          .from("goals")
+          .update(updatePayload)
+          .eq("id", goal.id);
+
+        if (error) {
+          console.log("更新目標狀態失敗", error);
+          checkbox.checked = goal.done;
+          return;
+        }
+      }
+
+      if (newDone && !goal.counted) {
         totalCompletedGoals++;
-        saveTotalCompletedGoals();
         goal.counted = true;
-        // 完成當下就記錄日期，不要等到跨週才回頭補，
-        // 這樣才不怕使用者忘記或提早關網頁。
-        goal.completedDate = new Date().toLocaleDateString("zh-TW");
-      } else if (!checkbox.checked && goal.counted) {
+        goal.completedDate = today;
+      } else if (!newDone && goal.counted) {
         totalCompletedGoals--;
-        saveTotalCompletedGoals();
         goal.counted = false;
         delete goal.completedDate;
       }
-      goal.done = checkbox.checked;
+
+      if (currentUser) {
+        await supabaseClient
+          .from("user_stats")
+          .update({ total_completed_goals: totalCompletedGoals })
+          .eq("user_id", currentUser.id);
+      }
+
+      goal.done = newDone;
       refreshGoals();
     });
 
@@ -769,8 +934,7 @@ function renderGoals() {
     deleteButton.innerText = "刪除";
 
     deleteButton.addEventListener("click", () => {
-      goals.splice(index, 1);
-      refreshGoals();
+      deleteGoal(goal.id);
     });
 
     goalItem.appendChild(checkbox);
@@ -781,20 +945,62 @@ function renderGoals() {
 
   updateGoalProgress();
 }
-function addGoal() {
+async function addGoal() {
   const newGoalText = goalInput.value.trim();
 
   if (newGoalText === "") {
     return;
   }
 
-  goals.push({
-    id: Date.now(),
-    text: newGoalText,
-    done: false
-  });
+  if (currentUser) {
+    const { data, error } = await supabaseClient
+      .from("goals")
+      .insert({
+        user_id: currentUser.id,
+        text: newGoalText,
+        done: false,
+        status: "active"
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.log("新增目標失敗", error);
+      return;
+    }
+
+    goals.push({
+      id: data.id,
+      text: data.text,
+      done: data.done,
+      counted: data.counted,
+      completedDate: data.completed_date
+    });
+  } else {
+    goals.push({
+      id: `demo-goal-${Date.now()}`,
+      text: newGoalText,
+      done: false,
+      counted: false
+    });
+  }
 
   goalInput.value = "";
+  refreshGoals();
+}
+async function deleteGoal(id) {
+  if (currentUser) {
+    const { error } = await supabaseClient.from("goals").delete().eq("id", id);
+    if (error) {
+      console.log("刪除目標失敗", error);
+      return;
+    }
+  }
+
+  goals = goals.filter(function (goal) {
+    return goal.id !== id;
+  });
+
   refreshGoals();
 }
 function updateGoalProgress() {
@@ -1069,17 +1275,8 @@ const health = {
 // ===================================================================
 // LifeOS 初始化
 // ===================================================================
-// Todo 初始化改由登入狀態決定（見上方 onAuthStateChange／getSession），
+// Todo／Goal 初始化改由登入狀態決定（見上方 onAuthStateChange／getSession），
 // 這裡不再呼叫舊的 localStorage 版本。
-loadGoals();
-loadPendingGoals();
-loadTotalCompletedGoals();
-loadGoalHistory();
-migrateLegacyCompletedGoals();
-checkGoalWeekRollover();
-renderGoals();
-renderPendingGoals();
-renderGoalHistory();
 loadReflections();
 loadReflection();
 renderReflections();
