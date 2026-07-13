@@ -14,44 +14,53 @@
     <h1>Live in the moment and enjoy life</h1>
 
     <div id="auth-bar" class="auth-bar">
-      <div class="auth-card">
 
-        <h2 class="auth-card-title">🔐 登入 LifeOS</h2>
-
-        <div id="auth-logged-out" class="auth-row">
-            <div class="auth-field">
-                <input id="auth-email-input" type="email" placeholder="輸入 Email 取得驗證碼">
-                <button id="auth-send-link-button" type="button">寄送驗證碼</button>
-            </div>
-
-            <div class="auth-divider"><span>或</span></div>
-
-            <button id="auth-google-button" type="button" class="auth-google-button">
-                <svg class="auth-google-icon" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                    <path fill="#4285F4" d="M19.6 10.23c0-.68-.06-1.36-.18-2H10v3.79h5.4a4.62 4.62 0 0 1-2 3.03v2.5h3.23c1.9-1.75 2.97-4.33 2.97-7.32z"/>
-                    <path fill="#34A853" d="M10 20c2.7 0 4.96-.89 6.62-2.42l-3.23-2.5c-.9.6-2.05.96-3.39.96-2.6 0-4.8-1.76-5.59-4.12H1.06v2.59A10 10 0 0 0 10 20z"/>
-                    <path fill="#FBBC05" d="M4.41 11.92A5.99 5.99 0 0 1 4.09 10c0-.67.11-1.32.32-1.92V5.49H1.06A10 10 0 0 0 0 10c0 1.61.39 3.14 1.06 4.51l3.35-2.59z"/>
-                    <path fill="#EA4335" d="M10 3.96c1.47 0 2.79.5 3.83 1.49l2.87-2.87C14.95.99 12.7 0 10 0 6.09 0 2.71 2.24 1.06 5.49l3.35 2.59C5.2 5.72 7.4 3.96 10 3.96z"/>
-                </svg>
-                使用 Google 帳號登入
-            </button>
+        <div id="auth-guest-trigger" class="auth-guest-trigger">
+            <button id="auth-open-modal-button" type="button" class="auth-trigger-button">🔐 登入</button>
         </div>
 
-        <div id="auth-otp-row" class="auth-row" style="display:none;">
-            <div class="auth-field">
-                <input id="auth-otp-input" type="text" inputmode="numeric" placeholder="輸入 8 位數驗證碼">
-                <button id="auth-verify-otp-button" type="button">驗證登入</button>
-            </div>
-        </div>
-
-        <span id="auth-status" class="auth-status"></span>
-
-        <div id="auth-logged-in" class="auth-row" style="display:none;">
+        <div id="auth-logged-in" class="auth-logged-in-badge" style="display:none;">
             <span id="auth-user-email"></span>
             <button id="auth-logout-button" type="button">登出</button>
         </div>
 
-      </div>
+    </div>
+
+    <div id="auth-modal-overlay" class="modal-overlay" style="display:none;">
+        <div class="modal-box auth-modal-box">
+            <div class="modal-header">
+                <h2>🔐 登入 LifeOS</h2>
+                <button id="auth-modal-close" type="button">✕</button>
+            </div>
+
+            <div id="auth-logged-out" class="auth-row">
+                <div class="auth-field">
+                    <input id="auth-email-input" type="email" placeholder="輸入 Email 取得驗證碼">
+                    <button id="auth-send-link-button" type="button">寄送驗證碼</button>
+                </div>
+
+                <div class="auth-divider"><span>或</span></div>
+
+                <button id="auth-google-button" type="button" class="auth-google-button">
+                    <svg class="auth-google-icon" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <path fill="#4285F4" d="M19.6 10.23c0-.68-.06-1.36-.18-2H10v3.79h5.4a4.62 4.62 0 0 1-2 3.03v2.5h3.23c1.9-1.75 2.97-4.33 2.97-7.32z"/>
+                        <path fill="#34A853" d="M10 20c2.7 0 4.96-.89 6.62-2.42l-3.23-2.5c-.9.6-2.05.96-3.39.96-2.6 0-4.8-1.76-5.59-4.12H1.06v2.59A10 10 0 0 0 10 20z"/>
+                        <path fill="#FBBC05" d="M4.41 11.92A5.99 5.99 0 0 1 4.09 10c0-.67.11-1.32.32-1.92V5.49H1.06A10 10 0 0 0 0 10c0 1.61.39 3.14 1.06 4.51l3.35-2.59z"/>
+                        <path fill="#EA4335" d="M10 3.96c1.47 0 2.79.5 3.83 1.49l2.87-2.87C14.95.99 12.7 0 10 0 6.09 0 2.71 2.24 1.06 5.49l3.35 2.59C5.2 5.72 7.4 3.96 10 3.96z"/>
+                    </svg>
+                    使用 Google 帳號登入
+                </button>
+            </div>
+
+            <div id="auth-otp-row" class="auth-row" style="display:none;">
+                <div class="auth-field">
+                    <input id="auth-otp-input" type="text" inputmode="numeric" placeholder="輸入 8 位數驗證碼">
+                    <button id="auth-verify-otp-button" type="button">驗證登入</button>
+                </div>
+            </div>
+
+            <span id="auth-status" class="auth-status"></span>
+        </div>
     </div>
 
     <div class="container">

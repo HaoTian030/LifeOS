@@ -16,6 +16,10 @@ const authLoggedIn = document.getElementById("auth-logged-in");
 const authUserEmail = document.getElementById("auth-user-email");
 const authLogoutButton = document.getElementById("auth-logout-button");
 const authGoogleButton = document.getElementById("auth-google-button");
+const authGuestTrigger = document.getElementById("auth-guest-trigger");
+const authOpenModalButton = document.getElementById("auth-open-modal-button");
+const authModalOverlay = document.getElementById("auth-modal-overlay");
+const authModalClose = document.getElementById("auth-modal-close");
 
 // 記著剛剛是對哪個 email 寄的驗證碼，等一下驗證那一步要用。
 let pendingAuthEmail = "";
@@ -84,24 +88,45 @@ async function verifyOtp() {
   // 驗證成功的話，onAuthStateChange 會自動接手切換畫面，這裡不用另外處理。
 }
 
+// 登入彈出視窗：開關邏輯跟既有的 History Modal 是同一套互動慣例，
+// 點視窗外面空白處也能關閉，維持一致的操作手感。
+function openAuthModal() {
+  authModalOverlay.style.display = "flex";
+}
+function closeAuthModal() {
+  authModalOverlay.style.display = "none";
+}
+
+authOpenModalButton.addEventListener("click", openAuthModal);
+authModalClose.addEventListener("click", closeAuthModal);
+authModalOverlay.addEventListener("click", function (event) {
+  if (event.target === authModalOverlay) {
+    closeAuthModal();
+  }
+});
+
 async function showLoggedIn(user) {
+  authGuestTrigger.style.display = "none";
+  authLoggedIn.style.display = "flex";
   authLoggedOut.style.display = "none";
   authOtpRow.style.display = "none";
-  authLoggedIn.style.display = "flex";
   authUserEmail.innerText = `👤 已登入：${user.email}`;
   authStatus.innerText = "";
+  closeAuthModal();
   await initTodosForUser(user);
   await initGoalsForUser();
   await initReflectionsForUser();
 }
 
 function showLoggedOut() {
+  authGuestTrigger.style.display = "flex";
+  authLoggedIn.style.display = "none";
   authLoggedOut.style.display = "flex";
   authOtpRow.style.display = "none";
-  authLoggedIn.style.display = "none";
   authStatus.innerText = "";
   authOtpInput.value = "";
   pendingAuthEmail = "";
+  closeAuthModal();
   initTodosForGuest();
   initGoalsForGuest();
   initReflectionsForGuest();
