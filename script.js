@@ -72,6 +72,7 @@ async function showLoggedIn(user) {
   authStatus.innerText = "";
   await initTodosForUser(user);
   await initGoalsForUser();
+  await initReflectionsForUser();
 }
 
 function showLoggedOut() {
@@ -83,6 +84,7 @@ function showLoggedOut() {
   pendingAuthEmail = "";
   initTodosForGuest();
   initGoalsForGuest();
+  initReflectionsForGuest();
 }
 
 async function logout() {
@@ -1030,6 +1032,14 @@ goalInput.addEventListener("keydown", event => {
 // ===================================================================
 
 // ============反============思============面============板============
+// 這一塊已改成讀寫 Supabase 的 reflections 表（登入後）；
+// 未登入時走「示範模式」，只在記憶體裡操作，重新整理就恢復原狀。
+
+// 示範模式用的固定範例資料，date 用今天，讓「今日已儲存」的狀態文字也能正常展示。
+const DEMO_REFLECTIONS = [
+  { id: "demo-reflection-1", date: todayDateString(), text: "範例：今天最大的收穫，是搞懂 LifeOS 怎麼使用。" }
+];
+
 function loadReflection() {
   // 不再讀取舊的 "todayReflection"，改成統一以 reflections 陣列為唯一資料來源，
   // 直接查詢「今天是否已經有反思」來決定狀態文字要顯示什麼。
@@ -1041,26 +1051,44 @@ function loadReflection() {
     reflectionStatus.innerText = "尚未儲存今日反思";
   }
 }
-function saveReflection() {
+async function saveReflection() {
   const reflectionText = reflectionInput.value.trim();
   if (!reflectionText) return;
-  const today = new Date().toLocaleDateString("zh-TW");
+  const today = todayDateString();
   const todayReflection = findTodayReflection();
 
   if (todayReflection === undefined) {
-    const reflection = {
-      id: Date.now(),
-      date: today,
-      text: reflectionText
-    };
-  
-    reflections.push(reflection);
+    if (currentUser) {
+      const { data, error } = await supabaseClient
+        .from("reflections")
+        .insert({ user_id: currentUser.id, text: reflectionText, date: today })
+        .select()
+        .single();
 
+      if (error) {
+        console.log("新增反思失敗", error);
+        return;
+      }
+
+      reflections.push({ id: data.id, date: data.date, text: data.text });
+    } else {
+      reflections.push({ id: `demo-reflection-${Date.now()}`, date: today, text: reflectionText });
+    }
   } else {
+    if (currentUser) {
+      const { error } = await supabaseClient
+        .from("reflections")
+        .update({ text: reflectionText })
+        .eq("id", todayReflection.id);
+
+      if (error) {
+        console.log("更新反思失敗", error);
+        return;
+      }
+    }
     todayReflection.text = reflectionText;
   }
 
-  saveReflections();
   renderReflections();
 
   // 儲存 = 完成一個動作：清空輸入框，並立即給予儲存成功的回饋，
@@ -1069,11 +1097,30 @@ function saveReflection() {
   reflectionInput.style.height = "";
   reflectionStatus.innerText = `✅ 已儲存（${today}）`;
 }
-function loadReflections() {
-  reflections = loadFromStorage("reflections", []);
+async function loadReflectionsFromSupabase() {
+  const { data, error } = await supabaseClient
+    .from("reflections")
+    .select("*")
+    .eq("user_id", currentUser.id)
+    .order("date", { ascending: true });
+
+  if (error) {
+    console.log("讀取反思失敗", error);
+    reflections = [];
+    return;
+  }
+
+  reflections = data.map(row => ({ id: row.id, date: row.date, text: row.text }));
 }
-function saveReflections() {
-  saveToStorage("reflections", reflections);
+async function initReflectionsForUser() {
+  await loadReflectionsFromSupabase();
+  renderReflections();
+  loadReflection();
+}
+function initReflectionsForGuest() {
+  reflections = DEMO_REFLECTIONS.map(item => ({ id: item.id, date: item.date, text: item.text }));
+  renderReflections();
+  loadReflection();
 }
 function buildReflectionCard(reflection) {
 
@@ -1140,7 +1187,7 @@ function openReflectionHistoryModal() {
 }
 function findTodayReflection() {
 
-    const today = new Date().toLocaleDateString("zh-TW");
+    const today = todayDateString();
 
     const todayReflection = reflections.find(reflection => {
         return reflection.date === today;
@@ -1148,15 +1195,21 @@ function findTodayReflection() {
 
     return todayReflection;
 }
-function deleteReflection(id) {
+async function deleteReflection(id) {
+
+    if (currentUser) {
+        const { error } = await supabaseClient.from("reflections").delete().eq("id", id);
+        if (error) {
+            console.log("刪除反思失敗", error);
+            return;
+        }
+    }
 
     reflections = reflections.filter(function (reflection) {
 
         return reflection.id !== id;
 
     });
-
-    saveReflections();
 
     renderReflections();
 
@@ -1275,9 +1328,6 @@ const health = {
 // ===================================================================
 // LifeOS 初始化
 // ===================================================================
-// Todo／Goal 初始化改由登入狀態決定（見上方 onAuthStateChange／getSession），
-// 這裡不再呼叫舊的 localStorage 版本。
-loadReflections();
-loadReflection();
-renderReflections();
+// Todo／Goal／Reflection 初始化改由登入狀態決定
+// （見上方 onAuthStateChange／getSession），這裡不再需要任何呼叫。
 updatePlayerPanel();
