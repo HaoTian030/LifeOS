@@ -87,11 +87,17 @@ h1{
 }
 
 #auth-send-link-button,
-#auth-logout-button {
+#auth-logout-button,
+#auth-google-button {
     padding: 8px 12px;
     border: none;
     border-radius: 8px;
     cursor: pointer;
+}
+
+.auth-divider {
+    font-size: 13px;
+    color: #9ca3af;
 }
 
 #auth-status {

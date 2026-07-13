@@ -18,10 +18,12 @@
         <div id="auth-logged-out" class="auth-row">
             <input id="auth-email-input" type="email" placeholder="輸入 Email 取得驗證碼">
             <button id="auth-send-link-button" type="button">寄送驗證碼</button>
+            <span class="auth-divider">或</span>
+            <button id="auth-google-button" type="button">使用 Google 登入</button>
         </div>
 
         <div id="auth-otp-row" class="auth-row" style="display:none;">
-            <input id="auth-otp-input" type="text" inputmode="numeric" placeholder="輸入 6 位數驗證碼">
+            <input id="auth-otp-input" type="text" inputmode="numeric" placeholder="輸入 8 位數驗證碼">
             <button id="auth-verify-otp-button" type="button">驗證登入</button>
         </div>
 
@@ -35,6 +37,28 @@
     </div>
 
     <div class="container">
+
+        <div class="card" id="player-card">
+            <h2>👁️‍🗨️ 玩家面板</h2>
+            <p id="player-level"></p>
+            <p id="player-exp"></p>
+            <div class="progress-bar">
+                <div class="progress" id="exp-progress"></div>
+            </div>
+            <p id="wealth-stat"></p>
+            <p id="health-stat"></p>
+            <p id="goal-stat"></p>  
+        </div>  
+        
+        <div class="card" id="status-card">
+            <h2>👤 人物情報</h2>
+            <p id="cash"></p>
+            <p id="investment"></p>
+            <p id="crypto"></p>
+            <p id="income"></p>
+            <p id="expense"></p>
+            <p id="finance"></p>
+        </div>
 
         <div class="card" id="todo-card">
             <h2>📋 今日待辦</h2>
@@ -54,7 +78,7 @@
         </div>
 
         <div class="card" id="reflection-card">
-            <h2>💭 日記生活</h2>
+            <h2>💭 反思</h2>
 
             <div class="reflection-input-row">
                 <textarea id="reflection-input" placeholder="寫下今天的反思..."></textarea>
@@ -64,9 +88,16 @@
             <p id="reflection-status"></p>
             <div id="reflection-list"></div>
         </div>
+        <div class="card" id="study-card">
+            <h2>📚 學習進度</h2>
+            <p>建立浩添的人生儀表板</p>
+            <div class="progress-bar">
+            <div class="progress" style="width:33%"></div> 
+            </div>
+        </div>  
 
         <div class="card" id="goal-card">
-            <h2>📖 當週目標</h2>
+            <h2>📖 本週目標</h2>
             <p id="weekly-progress">🏆: 0 / 0</p>
 
             <div id="pending-goals-section" class="pending-section" style="display:none;">
@@ -85,6 +116,24 @@
         <div class="card" id="goal-history-card">
             <h2>🏅 目標歷程</h2>
             <div id="goal-history-list"></div>
+        </div>
+
+        <div class="card" id="finance-card">
+            <h2>📒 本月財務</h2>
+            <p>收入：$45,000</p>
+            <p>支出：$28,000</p> 
+        </div>
+
+        <div class="card" id="investment-card">
+            <h2>💹 投資監控</h2>
+            <p>(13%) 0050：$3,000</p>
+            <div class="progress-bar">
+            <div class="progress" style="width:13%"></div> 
+            </div>    
+            <p>(26%) 0056：$15,000</p>
+            <div class="progress-bar">
+            <div class="progress" style="width:26%"></div> 
+            </div>
         </div>
 
     </div>

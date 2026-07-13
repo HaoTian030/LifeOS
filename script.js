@@ -15,6 +15,7 @@ const authVerifyOtpButton = document.getElementById("auth-verify-otp-button");
 const authLoggedIn = document.getElementById("auth-logged-in");
 const authUserEmail = document.getElementById("auth-user-email");
 const authLogoutButton = document.getElementById("auth-logout-button");
+const authGoogleButton = document.getElementById("auth-google-button");
 
 // 記著剛剛是對哪個 email 寄的驗證碼，等一下驗證那一步要用。
 let pendingAuthEmail = "";
@@ -44,6 +45,25 @@ async function sendOtp() {
   authLoggedOut.style.display = "none";
   authOtpRow.style.display = "flex";
   authStatus.innerText = "✅ 驗證碼已寄出，請到信箱查收";
+}
+
+// Google 登入：點下去會跳轉到 Google 的登入頁面，
+// 授權完成後跳轉回目前這個網址，登入狀態改變後 onAuthStateChange 會自動接手切換畫面，
+// 跟 OTP 登入成功後的處理方式一致，不需要另外寫。
+async function signInWithGoogle() {
+  authStatus.innerText = "正在前往 Google 登入...";
+
+  const { error } = await supabaseClient.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: window.location.href
+    }
+  });
+
+  if (error) {
+    authStatus.innerText = `❌ ${error.message}`;
+  }
+  // 沒有 error 的話，瀏覽器會直接跳轉離開這一頁去 Google，不用再處理畫面。
 }
 
 async function verifyOtp() {
@@ -94,6 +114,7 @@ async function logout() {
 authSendLinkButton.addEventListener("click", sendOtp);
 authVerifyOtpButton.addEventListener("click", verifyOtp);
 authLogoutButton.addEventListener("click", logout);
+authGoogleButton.addEventListener("click", signInWithGoogle);
 
 // 登入狀態改變時（包含剛點完信裡連結跳轉回來的那一刻）自動更新畫面。
 supabaseClient.auth.onAuthStateChange((event, session) => {
