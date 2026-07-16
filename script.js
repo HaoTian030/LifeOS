@@ -160,6 +160,32 @@ supabaseClient.auth.getSession().then(({ data }) => {
 });
 // ===================================================================
 
+// ============五============分============頁============導============覽============
+// 分頁邏輯只負責「顯示/隱藏哪些卡片」，不碰資料本身。
+// 每張卡片在 HTML 上用 data-tab 標記屬於哪個分頁，這裡切換時只是
+// 對照 data-tab 值決定 display，登入/登出、資料讀寫完全不受影響。
+const tabNavButtons = document.querySelectorAll(".tab-nav-button");
+const tabCards = document.querySelectorAll("[data-tab]");
+
+function switchTab(targetTab) {
+  tabCards.forEach(function (card) {
+    card.style.display = card.dataset.tab === targetTab ? "" : "none";
+  });
+
+  tabNavButtons.forEach(function (button) {
+    button.classList.toggle("is-active", button.dataset.tabTarget === targetTab);
+  });
+}
+
+tabNavButtons.forEach(function (button) {
+  button.addEventListener("click", function () {
+    switchTab(button.dataset.tabTarget);
+  });
+});
+// 登入後預設落在「待辦與目標」分頁（Log #007 定案），HTML 上已經
+// 預設只有這個分頁的卡片沒有 display:none，這裡不需要在載入時額外呼叫。
+// ===================================================================
+
 // ============共============用============工============具============
 // 給 todos / goals / reflections 共用的讀寫邏輯：
 // 讀取時如果資料不存在或壞掉，就退回 defaultValue，不會讓整個網頁掛掉。

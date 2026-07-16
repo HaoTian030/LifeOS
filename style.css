@@ -65,6 +65,94 @@ h1{
     }
 }
 
+/* ============ 五分頁導覽 ============ */
+/* Mobile-first：預設是底部固定分頁列，桌面（>=768px）改成常駐側邊欄。
+   同一份 HTML/CSS，靠 media query 切換呈現方式，不開發兩個獨立版本。 */
+.tab-nav {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    display: flex;
+    justify-content: space-around;
+    background: #1f2937;
+    border-top: 1px solid #374151;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px)) 4px;
+    z-index: 900;
+}
+
+.tab-nav-button {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    background: none;
+    border: none;
+    color: #9ca3af;
+    font-size: 11px;
+    padding: 6px 2px;
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+.tab-nav-icon {
+    font-size: 18px;
+}
+
+.tab-nav-button.is-active {
+    color: #22c55e;
+    background: rgba(34, 197, 94, 0.12);
+}
+
+.tab-nav-button:hover {
+    color: #f3f4f6;
+}
+
+/* 底部列會蓋住畫面下緣，內容加一段底部留白，避免被擋住 */
+body {
+    padding-bottom: 78px;
+}
+
+.empty-state {
+    color: #9ca3af;
+    font-size: 14px;
+}
+
+@media (min-width: 768px) {
+    .tab-nav {
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 200px;
+        height: 100%;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: stretch;
+        border-top: none;
+        border-right: 1px solid #374151;
+        padding: 24px 12px;
+        gap: 6px;
+    }
+
+    .tab-nav-button {
+        flex-direction: row;
+        justify-content: flex-start;
+        gap: 10px;
+        font-size: 14px;
+        padding: 10px 12px;
+    }
+
+    .tab-nav-icon {
+        font-size: 18px;
+    }
+
+    body {
+        margin-left: 200px;
+        padding-bottom: 30px;
+    }
+}
+
 .auth-bar {
     max-width: 1500px;
     margin: 0 auto 20px auto;
