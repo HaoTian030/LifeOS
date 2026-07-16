@@ -11,21 +11,19 @@
 
 <body>
 
-    <div class="page-header">
-        <h1>Live in the moment and enjoy life</h1>
+    <h1>Live in the moment and enjoy life</h1>
 
-        <div id="auth-bar" class="auth-bar">
+    <div id="auth-bar" class="auth-bar">
 
-            <div id="auth-guest-trigger" class="auth-guest-trigger">
-                <button id="auth-open-modal-button" type="button" class="auth-trigger-button">🔐 <span class="auth-btn-label">登入</span></button>
-            </div>
-
-            <div id="auth-logged-in" class="auth-logged-in-badge" style="display:none;">
-                <span id="auth-user-email"></span>
-                <button id="auth-logout-button" type="button">登出</button>
-            </div>
-
+        <div id="auth-guest-trigger" class="auth-guest-trigger">
+            <button id="auth-open-modal-button" type="button" class="auth-trigger-button" title="登入" aria-label="登入">🔐</button>
         </div>
+
+        <div id="auth-logged-in" class="auth-logged-in-badge" style="display:none;">
+            <span id="auth-user-email"></span>
+            <button id="auth-logout-button" type="button" title="登出" aria-label="登出">🚪</button>
+        </div>
+
     </div>
 
     <nav id="tab-nav" class="tab-nav">

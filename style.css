@@ -11,20 +11,8 @@ body{
 }
 
 h1{
-    margin: 0;
-    min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.page-header {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-wrap: nowrap;
-    gap: 16px;
-    margin-bottom: 30px;
+    text-align: center;
+    margin: 0 70px 30px 70px;
 }
 
 .container{
@@ -133,18 +121,18 @@ body {
 
 @media (min-width: 768px) {
     .tab-nav {
-        top: 0;
-        left: 0;
-        bottom: 0;
+        top: 20px;
+        left: 20px;
+        bottom: 20px;
         width: 180px;
-        height: 100%;
+        height: auto;
         flex-direction: column;
         justify-content: flex-start;
         align-items: stretch;
         border-top: none;
         border-right: none;
-        border-radius: 0;
-        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.35);
+        border-radius: 18px;
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
         padding: 26px 14px;
         gap: 12px;
     }
@@ -163,15 +151,18 @@ body {
     }
 
     body {
-        margin-left: 200px;
+        margin-left: 240px;
         padding-bottom: 30px;
     }
 }
 
 .auth-bar {
+    position: fixed;
+    top: 16px;
+    right: 16px;
     display: flex;
     align-items: center;
-    flex-shrink: 0;
+    z-index: 950;
 }
 
 .auth-guest-trigger {
@@ -179,13 +170,18 @@ body {
 }
 
 .auth-trigger-button {
-    padding: 8px 16px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
     border: 1px solid #374151;
-    border-radius: 999px;
+    border-radius: 50%;
     cursor: pointer;
     background: #1f2937;
     color: #f3f4f6;
-    font-size: 14px;
+    font-size: 17px;
 }
 
 .auth-trigger-button:hover {
@@ -196,9 +192,34 @@ body {
     align-items: center;
     gap: 6px;
     background: #1f2937;
-    padding: 4px 6px 4px 10px;
+    padding: 4px;
     border-radius: 999px;
-    font-size: 12px;
+}
+
+.auth-logged-in-badge span,
+.auth-logged-in-badge button {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    border-radius: 50%;
+}
+
+#auth-user-email {
+    cursor: default;
+}
+
+#auth-logout-button {
+    border: none;
+    background: transparent;
+    color: #f3f4f6;
+    cursor: pointer;
+}
+
+#auth-logout-button:hover {
+    background: #374151;
 }
 
 .modal-box.auth-modal-box {
@@ -296,31 +317,12 @@ body {
     flex-shrink: 0;
 }
 
-#auth-logout-button {
-    padding: 6px 12px;
-    border: 1px solid #374151;
-    border-radius: 999px;
-    cursor: pointer;
-    background: transparent;
-    color: #f3f4f6;
-    font-size: 12px;
-}
-
-#auth-logout-button:hover {
-    background: #374151;
-}
-
 .auth-status {
     display: block;
     font-size: 13px;
     color: #9ca3af;
     text-align: center;
     min-height: 16px;
-}
-
-#auth-user-email {
-    font-size: 13px;
-    color: #d1d5db;
 }
 
 .card{
