@@ -12,13 +12,17 @@ body{
 
 h1{
     margin: 0;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .page-header {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: center;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 16px;
     margin-bottom: 30px;
 }
@@ -129,18 +133,18 @@ body {
 
 @media (min-width: 768px) {
     .tab-nav {
-        top: 20px;
-        left: 20px;
-        bottom: 20px;
+        top: 0;
+        left: 0;
+        bottom: 0;
         width: 180px;
-        height: auto;
+        height: 100%;
         flex-direction: column;
         justify-content: flex-start;
         align-items: stretch;
         border-top: none;
         border-right: none;
-        border-radius: 18px;
-        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+        border-radius: 0;
+        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.35);
         padding: 26px 14px;
         gap: 12px;
     }
@@ -159,7 +163,7 @@ body {
     }
 
     body {
-        margin-left: 240px;
+        margin-left: 200px;
         padding-bottom: 30px;
     }
 }
@@ -167,6 +171,7 @@ body {
 .auth-bar {
     display: flex;
     align-items: center;
+    flex-shrink: 0;
 }
 
 .auth-guest-trigger {
