@@ -11,8 +11,16 @@ body{
 }
 
 h1{
-    text-align:center;
-    margin-bottom:30px;
+    margin: 0;
+}
+
+.page-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 30px;
 }
 
 .container{
@@ -121,26 +129,29 @@ body {
 
 @media (min-width: 768px) {
     .tab-nav {
-        top: 0;
-        left: 0;
-        bottom: 0;
-        width: 200px;
-        height: 100%;
+        top: 20px;
+        left: 20px;
+        bottom: 20px;
+        width: 180px;
+        height: auto;
         flex-direction: column;
         justify-content: flex-start;
         align-items: stretch;
         border-top: none;
-        border-right: 1px solid #374151;
-        padding: 24px 12px;
-        gap: 6px;
+        border-right: none;
+        border-radius: 18px;
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+        padding: 26px 14px;
+        gap: 12px;
     }
 
     .tab-nav-button {
         flex-direction: row;
         justify-content: flex-start;
-        gap: 10px;
+        gap: 12px;
         font-size: 14px;
-        padding: 10px 12px;
+        padding: 12px 14px;
+        border-radius: 12px;
     }
 
     .tab-nav-icon {
@@ -148,16 +159,14 @@ body {
     }
 
     body {
-        margin-left: 200px;
+        margin-left: 240px;
         padding-bottom: 30px;
     }
 }
 
 .auth-bar {
-    max-width: 1500px;
-    margin: 0 auto 20px auto;
     display: flex;
-    justify-content: center;
+    align-items: center;
 }
 
 .auth-guest-trigger {
@@ -180,11 +189,11 @@ body {
 
 .auth-logged-in-badge {
     align-items: center;
-    gap: 10px;
+    gap: 6px;
     background: #1f2937;
-    padding: 6px 8px 6px 14px;
+    padding: 4px 6px 4px 10px;
     border-radius: 999px;
-    font-size: 13px;
+    font-size: 12px;
 }
 
 .modal-box.auth-modal-box {

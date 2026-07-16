@@ -110,7 +110,8 @@ async function showLoggedIn(user) {
   authLoggedIn.style.display = "flex";
   authLoggedOut.style.display = "none";
   authOtpRow.style.display = "none";
-  authUserEmail.innerText = `👤 已登入：${user.email}`;
+  authUserEmail.innerText = "👤";
+  authUserEmail.title = `已登入：${user.email}`;
   authStatus.innerText = "";
   closeAuthModal();
   await initTodosForUser(user);
