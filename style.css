@@ -199,37 +199,22 @@ body {
 }
 
 .auth-logged-in-badge {
-    align-items: center;
-    gap: 6px;
-    background: #1f2937;
-    padding: 4px;
-    border-radius: 999px;
-}
-
-.auth-logged-in-badge span,
-.auth-logged-in-badge button {
-    width: 32px;
-    height: 32px;
     display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 15px;
-    border-radius: 50%;
-}
-
-#auth-user-email {
-    cursor: default;
 }
 
 #auth-logout-button {
-    border: none;
-    background: transparent;
-    color: #f3f4f6;
+    padding: 8px 14px;
+    border: 1px solid #374151;
+    border-radius: 999px;
+    background: #1f2937;
+    color: #9ca3af;
+    font-size: 12px;
     cursor: pointer;
 }
 
 #auth-logout-button:hover {
-    background: #374151;
+    background: #27303f;
+    color: #f3f4f6;
 }
 
 .modal-box.auth-modal-box {

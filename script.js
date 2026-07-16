@@ -13,7 +13,6 @@ const authOtpRow = document.getElementById("auth-otp-row");
 const authOtpInput = document.getElementById("auth-otp-input");
 const authVerifyOtpButton = document.getElementById("auth-verify-otp-button");
 const authLoggedIn = document.getElementById("auth-logged-in");
-const authUserEmail = document.getElementById("auth-user-email");
 const authLogoutButton = document.getElementById("auth-logout-button");
 const authGoogleButton = document.getElementById("auth-google-button");
 const authGuestTrigger = document.getElementById("auth-guest-trigger");
@@ -110,8 +109,7 @@ async function showLoggedIn(user) {
   authLoggedIn.style.display = "flex";
   authLoggedOut.style.display = "none";
   authOtpRow.style.display = "none";
-  authUserEmail.innerText = "👤";
-  authUserEmail.title = `已登入：${user.email}`;
+  authLogoutButton.title = `已登入：${user.email}（點擊登出）`;
   authStatus.innerText = "";
   closeAuthModal();
   await initTodosForUser(user);
