@@ -179,10 +179,138 @@ function switchTab(targetTab) {
 tabNavButtons.forEach(function (button) {
   button.addEventListener("click", function () {
     switchTab(button.dataset.tabTarget);
+    if (button.dataset.tabTarget === "notion") {
+      loadNotionTab();
+    }
   });
 });
 // 登入後預設落在「待辦與目標」分頁（Log #007 定案），HTML 上已經
 // 預設只有這個分頁的卡片沒有 display:none，這裡不需要在載入時額外呼叫。
+// ===================================================================
+
+// ============N============o============t============i============o============n============
+// Notion 整合 Phase 1（BYO Token 版本，每位使用者連接自己的 Notion）：
+// 沒連接時顯示表單，連接後顯示資料庫內容。實際呼叫 Notion API 的動作都交給
+// Edge Function（notion-fetch）代打，前端全程看不到、也不會傳送裸露的 Token 去外部網站。
+const notionConnectForm = document.getElementById("notion-connect-form");
+const notionTokenInput = document.getElementById("notion-token-input");
+const notionDatabaseInput = document.getElementById("notion-database-input");
+const notionSaveButton = document.getElementById("notion-save-button");
+const notionStatus = document.getElementById("notion-status");
+const notionEntriesSection = document.getElementById("notion-entries-section");
+const notionEntriesStatus = document.getElementById("notion-entries-status");
+const notionEntriesList = document.getElementById("notion-entries-list");
+const notionRefreshButton = document.getElementById("notion-refresh-button");
+
+function renderNotionEntries(entries) {
+  notionEntriesList.innerHTML = "";
+
+  if (!entries || entries.length === 0) {
+    notionEntriesList.innerHTML = '<p class="empty-state">這個 Notion 資料庫目前沒有資料。</p>';
+    return;
+  }
+
+  entries.forEach(function (entry) {
+    const card = document.createElement("div");
+    card.className = "notion-entry-card";
+
+    Object.entries(entry.properties).forEach(function ([key, value]) {
+      if (!value) return;
+      const row = document.createElement("div");
+      row.className = "notion-entry-row";
+      row.innerHTML =
+        '<span class="notion-entry-key">' + key + '：</span>' +
+        '<span class="notion-entry-value"></span>';
+      row.querySelector(".notion-entry-value").innerText = value;
+      card.appendChild(row);
+    });
+
+    if (entry.url) {
+      const link = document.createElement("a");
+      link.href = entry.url;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.className = "notion-entry-link";
+      link.innerText = "在 Notion 開啟 →";
+      card.appendChild(link);
+    }
+
+    notionEntriesList.appendChild(card);
+  });
+}
+
+async function loadNotionTab() {
+  if (!currentUser) {
+    notionConnectForm.style.display = "flex";
+    notionEntriesSection.style.display = "none";
+    notionStatus.innerText = "請先登入才能連接 Notion。";
+    return;
+  }
+
+  notionEntriesStatus.innerText = "讀取中...";
+
+  const { data, error } = await supabaseClient.functions.invoke("notion-fetch");
+
+  if (error || !data) {
+    notionConnectForm.style.display = "flex";
+    notionEntriesSection.style.display = "none";
+    notionStatus.innerText = "連線發生問題，請稍後再試一次。";
+    return;
+  }
+
+  if (!data.connected) {
+    notionConnectForm.style.display = "flex";
+    notionEntriesSection.style.display = "none";
+    notionStatus.innerText = data.error || "";
+    return;
+  }
+
+  notionConnectForm.style.display = "none";
+  notionEntriesSection.style.display = "block";
+
+  if (data.error) {
+    notionEntriesStatus.innerText = data.error;
+    notionEntriesList.innerHTML = "";
+    return;
+  }
+
+  notionEntriesStatus.innerText = "";
+  renderNotionEntries(data.entries);
+}
+
+notionSaveButton.addEventListener("click", async function () {
+  if (!currentUser) {
+    notionStatus.innerText = "請先登入才能連接 Notion。";
+    return;
+  }
+
+  const token = notionTokenInput.value.trim();
+  const databaseId = notionDatabaseInput.value.trim();
+
+  if (!token || !databaseId) {
+    notionStatus.innerText = "請把 Token 跟資料庫 ID 都填寫完整。";
+    return;
+  }
+
+  notionStatus.innerText = "儲存中...";
+
+  const { error } = await supabaseClient.from("notion_connections").upsert({
+    user_id: currentUser.id,
+    notion_token: token,
+    notion_database_id: databaseId,
+    updated_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    notionStatus.innerText = "儲存失敗，請稍後再試一次。";
+    return;
+  }
+
+  notionStatus.innerText = "已儲存，正在測試連線...";
+  await loadNotionTab();
+});
+
+notionRefreshButton.addEventListener("click", loadNotionTab);
 // ===================================================================
 
 // ============共============用============工============具============

@@ -119,6 +119,97 @@ body {
     font-size: 14px;
 }
 
+.empty-state a {
+    color: #22c55e;
+}
+
+/* ============ Notion 筆記分頁 ============ */
+.notion-connect-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.notion-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+#notion-token-input,
+#notion-database-input {
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #374151;
+    background: #111827;
+    color: #f3f4f6;
+    font-size: 14px;
+}
+
+#notion-token-input::placeholder,
+#notion-database-input::placeholder {
+    color: #6b7280;
+}
+
+#notion-token-input:focus,
+#notion-database-input:focus {
+    outline: none;
+    border-color: #22c55e;
+}
+
+#notion-save-button {
+    padding: 10px 12px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    background: #22c55e;
+    color: #052e12;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+#notion-save-button:hover {
+    background: #1ea34e;
+}
+
+#notion-refresh-button {
+    width: auto;
+    display: inline-block;
+    margin-bottom: 12px;
+}
+
+.notion-entry-card {
+    background: #111827;
+    border-left: 4px solid #22c55e;
+    border-radius: 8px;
+    padding: 12px 15px;
+    margin-bottom: 12px;
+}
+
+.notion-entry-row {
+    display: flex;
+    gap: 6px;
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.notion-entry-row .notion-entry-key {
+    color: #9ca3af;
+    flex-shrink: 0;
+}
+
+.notion-entry-row .notion-entry-value {
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.notion-entry-link {
+    display: inline-block;
+    margin-top: 6px;
+    font-size: 13px;
+    color: #22c55e;
+}
+
 @media (min-width: 768px) {
     .tab-nav {
         top: 20px;

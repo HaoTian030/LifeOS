@@ -188,7 +188,24 @@
 
         <div class="card" id="notion-card" data-tab="notion" style="display:none;">
             <h2>📝 Notion 筆記</h2>
-            <p class="empty-state">Notion 整合 Phase 1 開發中，之後會在這裡讀取顯示你的 Notion 筆記。</p>
+
+            <div id="notion-connect-form" class="notion-connect-form">
+                <p class="empty-state">還沒連接 Notion。請先到 <a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener">notion.so/my-integrations</a> 建立一個 Internal Integration，並到你的資料庫右上角「•••」→「Add connections」把資料庫分享給它，再把 Token 跟資料庫 ID 貼到下面。</p>
+
+                <div class="notion-field">
+                    <input id="notion-token-input" type="password" placeholder="貼上 Notion Integration Token">
+                    <input id="notion-database-input" type="text" placeholder="貼上 Notion 資料庫 ID">
+                    <button id="notion-save-button" type="button">儲存並連接</button>
+                </div>
+
+                <span id="notion-status" class="auth-status"></span>
+            </div>
+
+            <div id="notion-entries-section" style="display:none;">
+                <button id="notion-refresh-button" class="history-button" type="button">🔄 重新整理</button>
+                <span id="notion-entries-status" class="auth-status"></span>
+                <div id="notion-entries-list"></div>
+            </div>
         </div>
 
     </div>
