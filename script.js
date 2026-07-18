@@ -212,66 +212,75 @@ function renderNotionEntries(entries) {
   }
 
   entries.forEach(function (entry) {
-    const card = document.createElement("div");
-    card.className = "notion-entry-card";
+    try {
+      const card = document.createElement("div");
+      card.className = "notion-entry-card";
 
-    const title = document.createElement("h3");
-    title.className = "notion-entry-title";
-    title.innerText = entry.title;
-    card.appendChild(title);
+      const title = document.createElement("h3");
+      title.className = "notion-entry-title";
+      title.innerText = entry.title || "（無標題）";
+      card.appendChild(title);
 
-    const tagFields = entry.fields.filter((f) => f.type === "tag" || f.type === "tags");
-    const textFields = entry.fields.filter((f) => f.type === "text");
+      const fields = Array.isArray(entry.fields) ? entry.fields : [];
+      const tagFields = fields.filter((f) => f.type === "tag" || f.type === "tags");
+      const textFields = fields.filter((f) => f.type === "text");
 
-    if (tagFields.length > 0) {
-      const tagRow = document.createElement("div");
-      tagRow.className = "notion-tag-row";
+      if (tagFields.length > 0) {
+        const tagRow = document.createElement("div");
+        tagRow.className = "notion-tag-row";
 
-      tagFields.forEach(function (field) {
-        const group = document.createElement("span");
-        group.className = "notion-tag-group";
+        tagFields.forEach(function (field) {
+          const group = document.createElement("span");
+          group.className = "notion-tag-group";
 
-        if (field.type === "tag") {
-          const tag = document.createElement("span");
-          tag.className = "notion-tag notion-tag-color-" + (field.color || "default");
-          tag.innerText = field.value;
-          group.appendChild(tag);
-        } else {
-          field.values.forEach(function (v) {
+          if (field.type === "tag") {
             const tag = document.createElement("span");
-            tag.className = "notion-tag notion-tag-color-" + (v.color || "default");
-            tag.innerText = v.name;
+            tag.className = "notion-tag notion-tag-color-" + (field.color || "default");
+            tag.innerText = field.value;
             group.appendChild(tag);
-          });
-        }
+          } else {
+            (field.values || []).forEach(function (v) {
+              const tag = document.createElement("span");
+              tag.className = "notion-tag notion-tag-color-" + (v.color || "default");
+              tag.innerText = v.name;
+              group.appendChild(tag);
+            });
+          }
 
-        tagRow.appendChild(group);
+          tagRow.appendChild(group);
+        });
+
+        card.appendChild(tagRow);
+      }
+
+      textFields.forEach(function (field) {
+        const row = document.createElement("div");
+        row.className = "notion-entry-row";
+        row.innerHTML =
+          '<span class="notion-entry-key">' + field.key + '：</span>' +
+          '<span class="notion-entry-value"></span>';
+        row.querySelector(".notion-entry-value").innerText = field.value;
+        card.appendChild(row);
       });
 
-      card.appendChild(tagRow);
+      if (entry.url) {
+        const link = document.createElement("a");
+        link.href = entry.url;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.className = "notion-entry-link";
+        link.innerText = "在 Notion 開啟 →";
+        card.appendChild(link);
+      }
+
+      notionEntriesList.appendChild(card);
+    } catch (renderError) {
+      console.log("渲染 Notion 項目時發生錯誤", renderError, entry);
+      const fallback = document.createElement("p");
+      fallback.className = "empty-state";
+      fallback.innerText = "有一筆資料顯示失敗，可能是 Edge Function 還沒更新到最新版本。";
+      notionEntriesList.appendChild(fallback);
     }
-
-    textFields.forEach(function (field) {
-      const row = document.createElement("div");
-      row.className = "notion-entry-row";
-      row.innerHTML =
-        '<span class="notion-entry-key">' + field.key + '：</span>' +
-        '<span class="notion-entry-value"></span>';
-      row.querySelector(".notion-entry-value").innerText = field.value;
-      card.appendChild(row);
-    });
-
-    if (entry.url) {
-      const link = document.createElement("a");
-      link.href = entry.url;
-      link.target = "_blank";
-      link.rel = "noopener";
-      link.className = "notion-entry-link";
-      link.innerText = "在 Notion 開啟 →";
-      card.appendChild(link);
-    }
-
-    notionEntriesList.appendChild(card);
   });
 }
 
