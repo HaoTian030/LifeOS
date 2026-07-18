@@ -215,14 +215,49 @@ function renderNotionEntries(entries) {
     const card = document.createElement("div");
     card.className = "notion-entry-card";
 
-    Object.entries(entry.properties).forEach(function ([key, value]) {
-      if (!value) return;
+    const title = document.createElement("h3");
+    title.className = "notion-entry-title";
+    title.innerText = entry.title;
+    card.appendChild(title);
+
+    const tagFields = entry.fields.filter((f) => f.type === "tag" || f.type === "tags");
+    const textFields = entry.fields.filter((f) => f.type === "text");
+
+    if (tagFields.length > 0) {
+      const tagRow = document.createElement("div");
+      tagRow.className = "notion-tag-row";
+
+      tagFields.forEach(function (field) {
+        const group = document.createElement("span");
+        group.className = "notion-tag-group";
+
+        if (field.type === "tag") {
+          const tag = document.createElement("span");
+          tag.className = "notion-tag notion-tag-color-" + (field.color || "default");
+          tag.innerText = field.value;
+          group.appendChild(tag);
+        } else {
+          field.values.forEach(function (v) {
+            const tag = document.createElement("span");
+            tag.className = "notion-tag notion-tag-color-" + (v.color || "default");
+            tag.innerText = v.name;
+            group.appendChild(tag);
+          });
+        }
+
+        tagRow.appendChild(group);
+      });
+
+      card.appendChild(tagRow);
+    }
+
+    textFields.forEach(function (field) {
       const row = document.createElement("div");
       row.className = "notion-entry-row";
       row.innerHTML =
-        '<span class="notion-entry-key">' + key + '：</span>' +
+        '<span class="notion-entry-key">' + field.key + '：</span>' +
         '<span class="notion-entry-value"></span>';
-      row.querySelector(".notion-entry-value").innerText = value;
+      row.querySelector(".notion-entry-value").innerText = field.value;
       card.appendChild(row);
     });
 
