@@ -178,6 +178,17 @@ body {
     margin-bottom: 12px;
 }
 
+.notion-entries-toolbar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 4px;
+}
+
+.notion-entries-toolbar button {
+    width: auto;
+    margin-bottom: 8px;
+}
+
 .notion-entry-card {
     background: #111827;
     border-left: 4px solid #22c55e;

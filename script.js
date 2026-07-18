@@ -201,6 +201,7 @@ const notionEntriesSection = document.getElementById("notion-entries-section");
 const notionEntriesStatus = document.getElementById("notion-entries-status");
 const notionEntriesList = document.getElementById("notion-entries-list");
 const notionRefreshButton = document.getElementById("notion-refresh-button");
+const notionEditConnectionButton = document.getElementById("notion-edit-connection-button");
 
 function renderNotionEntries(entries) {
   notionEntriesList.innerHTML = "";
@@ -265,15 +266,17 @@ async function loadNotionTab() {
     return;
   }
 
-  notionConnectForm.style.display = "none";
-  notionEntriesSection.style.display = "block";
-
   if (data.error) {
-    notionEntriesStatus.innerText = data.error;
-    notionEntriesList.innerHTML = "";
+    // 已經存過連線設定，但讀取失敗（Token／資料庫 ID 錯誤），
+    // 讓表單繼續顯示，才有辦法修改重填，不要卡在只顯示錯誤訊息卻沒地方改的畫面
+    notionConnectForm.style.display = "flex";
+    notionEntriesSection.style.display = "none";
+    notionStatus.innerText = data.error;
     return;
   }
 
+  notionConnectForm.style.display = "none";
+  notionEntriesSection.style.display = "block";
   notionEntriesStatus.innerText = "";
   renderNotionEntries(data.entries);
 }
@@ -311,6 +314,12 @@ notionSaveButton.addEventListener("click", async function () {
 });
 
 notionRefreshButton.addEventListener("click", loadNotionTab);
+
+notionEditConnectionButton.addEventListener("click", function () {
+  notionConnectForm.style.display = "flex";
+  notionEntriesSection.style.display = "none";
+  notionStatus.innerText = "";
+});
 // ===================================================================
 
 // ============共============用============工============具============
