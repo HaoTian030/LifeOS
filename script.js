@@ -189,9 +189,12 @@ tabNavButtons.forEach(function (button) {
 // ===================================================================
 
 // ============N============o============t============i============o============n============
-// Notion 整合 Phase 1（BYO Token 版本，每位使用者連接自己的 Notion）：
-// 沒連接時顯示表單，連接後顯示資料庫內容。實際呼叫 Notion API 的動作都交給
-// Edge Function（notion-fetch）代打，前端全程看不到、也不會傳送裸露的 Token 去外部網站。
+// Notion 整合（BYO Token 版本，每位使用者連接自己的 Notion）：
+// Phase 1（讀取）＋ Phase 2（新增/編輯/封存）。沒連接時顯示表單，連接後顯示資料庫內容（表格）。
+// 實際呼叫 Notion API 的動作都交給兩支 Edge Function 代打：
+//   notion-fetch  負責讀取（含資料庫結構，用來動態產生表單欄位）
+//   notion-write  負責新增／編輯／封存
+// 前端全程看不到、也不會傳送裸露的 Token 去外部網站。
 const notionConnectForm = document.getElementById("notion-connect-form");
 const notionTokenInput = document.getElementById("notion-token-input");
 const notionDatabaseInput = document.getElementById("notion-database-input");
@@ -199,89 +202,122 @@ const notionSaveButton = document.getElementById("notion-save-button");
 const notionStatus = document.getElementById("notion-status");
 const notionEntriesSection = document.getElementById("notion-entries-section");
 const notionEntriesStatus = document.getElementById("notion-entries-status");
-const notionEntriesList = document.getElementById("notion-entries-list");
+const notionTableWrapper = document.getElementById("notion-table-wrapper");
 const notionRefreshButton = document.getElementById("notion-refresh-button");
 const notionEditConnectionButton = document.getElementById("notion-edit-connection-button");
+const notionAddButton = document.getElementById("notion-add-button");
 
-function renderNotionEntries(entries) {
-  notionEntriesList.innerHTML = "";
+const notionFormModalOverlay = document.getElementById("notion-form-modal-overlay");
+const notionFormTitle = document.getElementById("notion-form-title");
+const notionFormClose = document.getElementById("notion-form-close");
+const notionFormFields = document.getElementById("notion-form-fields");
+const notionFormStatus = document.getElementById("notion-form-status");
+const notionFormSaveButton = document.getElementById("notion-form-save-button");
+const notionFormArchiveButton = document.getElementById("notion-form-archive-button");
+
+// 記住最近一次讀取到的 schema，新增/編輯表單靠它動態產生欄位，不用每次開表單都重打 API
+let notionSchema = null;
+let notionEditingPageId = null; // null 代表目前是「新增」模式，有值代表正在編輯這筆
+
+function renderNotionTable(schema, entries) {
+  notionTableWrapper.innerHTML = "";
 
   if (!entries || entries.length === 0) {
-    notionEntriesList.innerHTML = '<p class="empty-state">這個 Notion 資料庫目前沒有資料。</p>';
+    notionTableWrapper.innerHTML = '<p class="empty-state">這個 Notion 資料庫目前沒有資料。</p>';
     return;
   }
 
+  const table = document.createElement("table");
+  table.className = "notion-table";
+
+  const thead = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  headRow.innerHTML = "<th>項目</th>";
+  schema.fields.forEach(function (field) {
+    const th = document.createElement("th");
+    th.innerText = field.key;
+    headRow.appendChild(th);
+  });
+  headRow.innerHTML += "<th></th>";
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+
   entries.forEach(function (entry) {
     try {
-      const card = document.createElement("div");
-      card.className = "notion-entry-card";
+      const row = document.createElement("tr");
 
-      const title = document.createElement("h3");
-      title.className = "notion-entry-title";
-      title.innerText = entry.title || "（無標題）";
-      card.appendChild(title);
+      const titleCell = document.createElement("td");
+      titleCell.className = "notion-table-title";
+      titleCell.innerText = entry.title || "（無標題）";
+      row.appendChild(titleCell);
 
-      const fields = Array.isArray(entry.fields) ? entry.fields : [];
-      const tagFields = fields.filter((f) => f.type === "tag" || f.type === "tags");
-      const textFields = fields.filter((f) => f.type === "text");
-
-      if (tagFields.length > 0) {
-        const tagRow = document.createElement("div");
-        tagRow.className = "notion-tag-row";
-
-        tagFields.forEach(function (field) {
-          const group = document.createElement("span");
-          group.className = "notion-tag-group";
-
-          if (field.type === "tag") {
-            const tag = document.createElement("span");
-            tag.className = "notion-tag notion-tag-color-" + (field.color || "default");
-            tag.innerText = field.value;
-            group.appendChild(tag);
-          } else {
-            (field.values || []).forEach(function (v) {
-              const tag = document.createElement("span");
-              tag.className = "notion-tag notion-tag-color-" + (v.color || "default");
-              tag.innerText = v.name;
-              group.appendChild(tag);
-            });
-          }
-
-          tagRow.appendChild(group);
-        });
-
-        card.appendChild(tagRow);
-      }
-
-      textFields.forEach(function (field) {
-        const row = document.createElement("div");
-        row.className = "notion-entry-row";
-        row.innerHTML =
-          '<span class="notion-entry-key">' + field.key + '：</span>' +
-          '<span class="notion-entry-value"></span>';
-        row.querySelector(".notion-entry-value").innerText = field.value;
-        card.appendChild(row);
+      const fieldsByKey = {};
+      (entry.fields || []).forEach(function (f) {
+        fieldsByKey[f.key] = f;
       });
+
+      schema.fields.forEach(function (schemaField) {
+        const cell = document.createElement("td");
+        cell.className = "notion-table-cell";
+        const field = fieldsByKey[schemaField.key];
+
+        if (!field) {
+          cell.innerHTML = "";
+        } else if (field.type === "tag") {
+          const tag = document.createElement("span");
+          tag.className = "notion-tag notion-tag-color-" + (field.color || "default");
+          tag.innerText = field.value;
+          cell.appendChild(tag);
+        } else if (field.type === "tags") {
+          (field.values || []).forEach(function (v) {
+            const tag = document.createElement("span");
+            tag.className = "notion-tag notion-tag-color-" + (v.color || "default");
+            tag.innerText = v.name;
+            tag.style.marginRight = "4px";
+            cell.appendChild(tag);
+          });
+        } else {
+          cell.innerText = field.value || "";
+        }
+
+        row.appendChild(cell);
+      });
+
+      const actionsCell = document.createElement("td");
+      actionsCell.className = "notion-table-actions";
+
+      const editBtn = document.createElement("button");
+      editBtn.className = "notion-table-action-btn";
+      editBtn.type = "button";
+      editBtn.title = "編輯";
+      editBtn.innerText = "✏️";
+      editBtn.addEventListener("click", function () {
+        openNotionForm({ mode: "edit", entry: entry });
+      });
+      actionsCell.appendChild(editBtn);
 
       if (entry.url) {
         const link = document.createElement("a");
         link.href = entry.url;
         link.target = "_blank";
         link.rel = "noopener";
-        link.className = "notion-entry-link";
-        link.innerText = "在 Notion 開啟 →";
-        card.appendChild(link);
+        link.title = "在 Notion 開啟";
+        link.className = "notion-table-action-btn";
+        link.innerText = "↗️";
+        actionsCell.appendChild(link);
       }
 
-      notionEntriesList.appendChild(card);
+      row.appendChild(actionsCell);
+      tbody.appendChild(row);
     } catch (renderError) {
-      console.log("渲染 Notion 項目時發生錯誤", renderError, entry);
-      const fallback = document.createElement("p");
-      fallback.className = "empty-state";
-      fallback.innerText = "有一筆資料顯示失敗，可能是 Edge Function 還沒更新到最新版本。";
-      notionEntriesList.appendChild(fallback);
+      console.log("渲染 Notion 資料列時發生錯誤", renderError, entry);
     }
   });
+
+  table.appendChild(tbody);
+  notionTableWrapper.appendChild(table);
 }
 
 async function loadNotionTab() {
@@ -322,7 +358,8 @@ async function loadNotionTab() {
   notionConnectForm.style.display = "none";
   notionEntriesSection.style.display = "block";
   notionEntriesStatus.innerText = "";
-  renderNotionEntries(data.entries);
+  notionSchema = data.schema;
+  renderNotionTable(data.schema, data.entries);
 }
 
 notionSaveButton.addEventListener("click", async function () {
@@ -363,6 +400,207 @@ notionEditConnectionButton.addEventListener("click", function () {
   notionConnectForm.style.display = "flex";
   notionEntriesSection.style.display = "none";
   notionStatus.innerText = "";
+});
+
+// ---------- 新增／編輯表單（依 schema 動態產生欄位）----------
+
+function buildNotionFormField(schemaField, currentValue) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "notion-form-field";
+  wrapper.dataset.fieldKey = schemaField.key;
+  wrapper.dataset.fieldType = schemaField.type;
+
+  const label = document.createElement("label");
+  label.innerText = schemaField.key;
+  wrapper.appendChild(label);
+
+  if (schemaField.type === "rich_text") {
+    const textarea = document.createElement("textarea");
+    textarea.value = currentValue || "";
+    wrapper.appendChild(textarea);
+  } else if (schemaField.type === "date") {
+    const input = document.createElement("input");
+    input.type = "date";
+    input.value = currentValue || "";
+    wrapper.appendChild(input);
+  } else if (schemaField.type === "checkbox") {
+    const row = document.createElement("div");
+    row.className = "notion-form-checkbox-row";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = !!currentValue;
+    row.appendChild(input);
+    wrapper.appendChild(row);
+  } else if (schemaField.type === "select" || schemaField.type === "status") {
+    const select = document.createElement("select");
+    const emptyOption = document.createElement("option");
+    emptyOption.value = "";
+    emptyOption.innerText = "（不選）";
+    select.appendChild(emptyOption);
+    (schemaField.options || []).forEach(function (opt) {
+      const option = document.createElement("option");
+      option.value = opt.name;
+      option.innerText = opt.name;
+      if (opt.name === currentValue) option.selected = true;
+      select.appendChild(option);
+    });
+    wrapper.appendChild(select);
+  } else if (schemaField.type === "multi_select") {
+    const group = document.createElement("div");
+    group.className = "notion-form-multiselect";
+    const selectedValues = Array.isArray(currentValue) ? currentValue : [];
+    (schemaField.options || []).forEach(function (opt) {
+      const tag = document.createElement("span");
+      tag.className = "notion-tag notion-tag-color-" + (opt.color || "default");
+      if (selectedValues.includes(opt.name)) tag.classList.add("is-selected");
+      tag.innerText = opt.name;
+      tag.dataset.optionName = opt.name;
+      tag.addEventListener("click", function () {
+        tag.classList.toggle("is-selected");
+      });
+      group.appendChild(tag);
+    });
+    wrapper.appendChild(group);
+  } else if (schemaField.type === "number") {
+    const input = document.createElement("input");
+    input.type = "number";
+    input.value = currentValue !== null && currentValue !== undefined ? currentValue : "";
+    wrapper.appendChild(input);
+  } else {
+    // url / email / phone_number 及其餘型別，都用單純文字輸入
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = currentValue || "";
+    wrapper.appendChild(input);
+  }
+
+  return wrapper;
+}
+
+function readNotionFormValue(wrapper) {
+  const type = wrapper.dataset.fieldType;
+  if (type === "rich_text") {
+    return wrapper.querySelector("textarea").value.trim();
+  }
+  if (type === "checkbox") {
+    return wrapper.querySelector("input[type=checkbox]").checked;
+  }
+  if (type === "select" || type === "status") {
+    return wrapper.querySelector("select").value;
+  }
+  if (type === "multi_select") {
+    return Array.from(wrapper.querySelectorAll(".notion-tag.is-selected")).map(
+      (tag) => tag.dataset.optionName
+    );
+  }
+  if (type === "number") {
+    const raw = wrapper.querySelector("input").value;
+    return raw === "" ? null : Number(raw);
+  }
+  return wrapper.querySelector("input").value.trim();
+}
+
+function openNotionForm(options) {
+  if (!notionSchema) return;
+
+  notionFormFields.innerHTML = "";
+  notionFormStatus.innerText = "";
+
+  const isEdit = options.mode === "edit";
+  notionEditingPageId = isEdit ? options.entry.id : null;
+  notionFormTitle.innerText = isEdit ? "編輯項目" : "新增項目";
+  notionFormArchiveButton.style.display = isEdit ? "inline-block" : "none";
+
+  // 標題一律是文字輸入，跟其他型別欄位分開處理
+  const titleWrapper = document.createElement("div");
+  titleWrapper.className = "notion-form-field";
+  titleWrapper.dataset.fieldKey = "__title__";
+  titleWrapper.dataset.fieldType = "title";
+  const titleLabel = document.createElement("label");
+  titleLabel.innerText = "標題";
+  const titleInput = document.createElement("input");
+  titleInput.type = "text";
+  titleInput.value = isEdit ? options.entry.title || "" : "";
+  titleWrapper.appendChild(titleLabel);
+  titleWrapper.appendChild(titleInput);
+  notionFormFields.appendChild(titleWrapper);
+
+  notionSchema.fields.forEach(function (schemaField) {
+    const currentValue = isEdit && options.entry.raw ? options.entry.raw[schemaField.key] : null;
+    notionFormFields.appendChild(buildNotionFormField(schemaField, currentValue));
+  });
+
+  notionFormModalOverlay.style.display = "flex";
+}
+
+function closeNotionForm() {
+  notionFormModalOverlay.style.display = "none";
+  notionEditingPageId = null;
+}
+
+notionAddButton.addEventListener("click", function () {
+  openNotionForm({ mode: "create" });
+});
+
+notionFormClose.addEventListener("click", closeNotionForm);
+
+notionFormModalOverlay.addEventListener("click", function (event) {
+  if (event.target === notionFormModalOverlay) closeNotionForm();
+});
+
+notionFormSaveButton.addEventListener("click", async function () {
+  if (!notionSchema) return;
+
+  const properties = {};
+  // 標題欄位用 schema 記下來的 titleKey 當作 key 送給後端
+  if (notionSchema.titleKey) {
+    properties[notionSchema.titleKey] = notionFormFields
+      .querySelector('[data-field-key="__title__"] input')
+      .value.trim();
+  }
+
+  notionFormFields.querySelectorAll(".notion-form-field").forEach(function (wrapper) {
+    if (wrapper.dataset.fieldKey === "__title__") return;
+    properties[wrapper.dataset.fieldKey] = readNotionFormValue(wrapper);
+  });
+
+  notionFormStatus.innerText = "儲存中...";
+  notionFormSaveButton.disabled = true;
+
+  const action = notionEditingPageId ? "update" : "create";
+  const { data, error } = await supabaseClient.functions.invoke("notion-write", {
+    body: { action, pageId: notionEditingPageId, properties },
+  });
+
+  notionFormSaveButton.disabled = false;
+
+  if (error || !data || !data.success) {
+    notionFormStatus.innerText = (data && data.error) || "儲存失敗，請稍後再試一次。";
+    return;
+  }
+
+  closeNotionForm();
+  await loadNotionTab();
+});
+
+notionFormArchiveButton.addEventListener("click", async function () {
+  if (!notionEditingPageId) return;
+  if (!confirm("確定要封存這個項目嗎？封存後會從 LifeOS 跟 Notion 的一般畫面消失，但可以在 Notion 的垃圾桶復原。")) {
+    return;
+  }
+
+  notionFormStatus.innerText = "封存中...";
+  const { data, error } = await supabaseClient.functions.invoke("notion-write", {
+    body: { action: "archive", pageId: notionEditingPageId },
+  });
+
+  if (error || !data || !data.success) {
+    notionFormStatus.innerText = (data && data.error) || "封存失敗，請稍後再試一次。";
+    return;
+  }
+
+  closeNotionForm();
+  await loadNotionTab();
 });
 // ===================================================================
 

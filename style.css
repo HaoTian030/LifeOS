@@ -197,25 +197,6 @@ body {
     margin-bottom: 12px;
 }
 
-.notion-entry-title {
-    margin: 0 0 8px 0;
-    font-size: 16px;
-    color: #f3f4f6;
-}
-
-.notion-tag-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: 10px;
-}
-
-.notion-tag-group {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-}
-
 .notion-tag {
     display: inline-block;
     padding: 2px 10px;
@@ -236,28 +217,152 @@ body {
 .notion-tag-color-pink    { background: rgba(173, 26, 114, 0.35); color: #fac2e0; }
 .notion-tag-color-red     { background: rgba(224, 62, 62, 0.35);  color: #fbc4c4; }
 
-.notion-entry-row {
-    display: flex;
-    gap: 6px;
-    font-size: 14px;
-    margin-bottom: 4px;
+/* ============ Notion 表格呈現 ============ */
+.notion-table-wrapper {
+    overflow-x: auto;
 }
 
-.notion-entry-row .notion-entry-key {
-    color: #9ca3af;
-    flex-shrink: 0;
-}
-
-.notion-entry-row .notion-entry-value {
-    overflow-wrap: break-word;
-    word-break: break-word;
-}
-
-.notion-entry-link {
-    display: inline-block;
-    margin-top: 6px;
+.notion-table {
+    width: 100%;
+    border-collapse: collapse;
     font-size: 13px;
-    color: #22c55e;
+}
+
+.notion-table th,
+.notion-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #374151;
+    text-align: left;
+    white-space: nowrap;
+    vertical-align: top;
+}
+
+.notion-table th {
+    color: #9ca3af;
+    font-weight: 600;
+    font-size: 12px;
+}
+
+.notion-table td.notion-table-title {
+    font-weight: 600;
+    white-space: normal;
+    min-width: 160px;
+    color: #f3f4f6;
+}
+
+.notion-table td.notion-table-cell {
+    white-space: normal;
+    max-width: 260px;
+}
+
+.notion-table td.notion-table-actions {
+    white-space: nowrap;
+}
+
+.notion-table-action-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 15px;
+    padding: 2px 6px;
+}
+
+.notion-table tr:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+/* ============ Notion 新增/編輯表單（沿用既有 modal 樣式）============ */
+.notion-form-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-height: 50vh;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.notion-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.notion-form-field label {
+    font-size: 13px;
+    color: #9ca3af;
+}
+
+.notion-form-field input[type="text"],
+.notion-form-field input[type="date"],
+.notion-form-field input[type="number"],
+.notion-form-field textarea,
+.notion-form-field select {
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid #374151;
+    background: #111827;
+    color: #f3f4f6;
+    font-size: 14px;
+    font-family: inherit;
+}
+
+.notion-form-field textarea {
+    min-height: 70px;
+    resize: vertical;
+}
+
+.notion-form-multiselect {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.notion-form-multiselect .notion-tag {
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+
+.notion-form-multiselect .notion-tag.is-selected {
+    border-color: #22c55e;
+}
+
+.notion-form-checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.notion-form-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+#notion-form-save-button {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    background: #22c55e;
+    color: #052e12;
+    font-weight: 600;
+}
+
+#notion-form-save-button:hover {
+    background: #1ea34e;
+}
+
+#notion-form-archive-button {
+    padding: 10px 16px;
+    border: 1px solid #ef4444;
+    border-radius: 8px;
+    cursor: pointer;
+    background: transparent;
+    color: #fca5a5;
+}
+
+#notion-form-archive-button:hover {
+    background: rgba(239, 68, 68, 0.12);
 }
 
 @media (min-width: 768px) {
