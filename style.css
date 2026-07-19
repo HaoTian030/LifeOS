@@ -271,98 +271,73 @@ body {
     background: rgba(255, 255, 255, 0.03);
 }
 
-/* ============ Notion 新增/編輯表單（沿用既有 modal 樣式）============ */
-.notion-form-fields {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    max-height: 50vh;
-    overflow-y: auto;
-    padding-right: 4px;
+.notion-table td.notion-cell-editable {
+    cursor: pointer;
 }
 
-.notion-form-field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+.notion-table td.notion-cell-editable:hover {
+    background: rgba(34, 197, 94, 0.08);
+    outline: 1px dashed #374151;
+    outline-offset: -2px;
 }
 
-.notion-form-field label {
-    font-size: 13px;
-    color: #9ca3af;
-}
-
-.notion-form-field input[type="text"],
-.notion-form-field input[type="date"],
-.notion-form-field input[type="number"],
-.notion-form-field textarea,
-.notion-form-field select {
-    padding: 8px 10px;
-    border-radius: 8px;
-    border: 1px solid #374151;
+.notion-table td input[type="text"],
+.notion-table td input[type="number"],
+.notion-table td input[type="date"],
+.notion-table td textarea,
+.notion-table td select {
+    width: 100%;
+    min-width: 120px;
+    padding: 4px 6px;
+    border-radius: 6px;
+    border: 1px solid #22c55e;
     background: #111827;
     color: #f3f4f6;
-    font-size: 14px;
+    font-size: 13px;
     font-family: inherit;
 }
 
-.notion-form-field textarea {
-    min-height: 70px;
+.notion-table td textarea {
+    min-height: 50px;
     resize: vertical;
 }
 
-.notion-form-multiselect {
+.notion-cell-multiselect {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 4px;
+    min-width: 160px;
 }
 
-.notion-form-multiselect .notion-tag {
+.notion-cell-multiselect .notion-tag {
     cursor: pointer;
     border: 1px solid transparent;
 }
 
-.notion-form-multiselect .notion-tag.is-selected {
+.notion-cell-multiselect .notion-tag.is-selected {
     border-color: #22c55e;
 }
 
-.notion-form-checkbox-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.notion-form-actions {
-    display: flex;
-    gap: 10px;
-    margin-top: 16px;
-}
-
-#notion-form-save-button {
-    padding: 10px 16px;
+.notion-cell-multiselect-confirm {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
     border: none;
-    border-radius: 8px;
-    cursor: pointer;
     background: #22c55e;
     color: #052e12;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    line-height: 1;
 }
 
-#notion-form-save-button:hover {
+.notion-cell-multiselect-confirm:hover {
     background: #1ea34e;
 }
 
-#notion-form-archive-button {
-    padding: 10px 16px;
-    border: 1px solid #ef4444;
-    border-radius: 8px;
+.notion-cell-checkbox {
     cursor: pointer;
-    background: transparent;
-    color: #fca5a5;
-}
-
-#notion-form-archive-button:hover {
-    background: rgba(239, 68, 68, 0.12);
+    font-size: 16px;
 }
 
 @media (min-width: 768px) {
