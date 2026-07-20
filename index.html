@@ -98,16 +98,6 @@
             <p id="health-stat"></p>
             <p id="goal-stat"></p>  
         </div>  
-        
-        <div class="card" id="status-card" data-tab="status" style="display:none;">
-            <h2>👤 人物情報</h2>
-            <p id="cash"></p>
-            <p id="investment"></p>
-            <p id="crypto"></p>
-            <p id="income"></p>
-            <p id="expense"></p>
-            <p id="finance"></p>
-        </div>
 
         <div class="card" id="todo-card" data-tab="todo-goal">
             <h2>📋 今日待辦</h2>
@@ -168,22 +158,41 @@
             <div id="goal-history-list"></div>
         </div>
 
-        <div class="card" id="finance-card" data-tab="finance" style="display:none;">
-            <h2>📒 本月財務</h2>
-            <p>收入：$45,000</p>
-            <p>支出：$28,000</p> 
-        </div>
+        <div class="card" id="finance-overview-card" data-tab="finance">
+            <h2>💰 資產總覽</h2>
 
-        <div class="card" id="investment-card" data-tab="finance" style="display:none;">
-            <h2>💹 投資監控</h2>
-            <p>(13%) 0050：$3,000</p>
-            <div class="progress-bar">
-            <div class="progress" style="width:13%"></div> 
-            </div>    
-            <p>(26%) 0056：$15,000</p>
-            <div class="progress-bar">
-            <div class="progress" style="width:26%"></div> 
+            <div class="finance-summary">
+                <p id="finance-total-assets">總資產：$0</p>
+                <p id="finance-total-liabilities">總負債：$0</p>
+                <p id="finance-net-worth">淨資產：$0</p>
             </div>
+
+            <div class="finance-input-row">
+                <input id="finance-name-input" type="text" placeholder="帳戶名稱（例如：土地銀行）">
+                <input id="finance-purpose-input" type="text" placeholder="用途（例如：薪資帳戶）">
+                <select id="finance-category-select">
+                    <option value="asset">資產</option>
+                    <option value="liability">負債</option>
+                </select>
+                <select id="finance-type-select">
+                    <option value="現金">現金</option>
+                    <option value="銀行">銀行</option>
+                    <option value="投資">投資</option>
+                    <option value="保單">保單</option>
+                    <option value="加密貨幣">加密貨幣</option>
+                    <option value="其他">其他</option>
+                </select>
+                <input id="finance-balance-input" type="number" placeholder="金額">
+                <button id="finance-add-button" type="button">新增帳戶</button>
+            </div>
+
+            <h3 class="finance-section-title">資產</h3>
+            <p id="finance-assets-empty" class="empty-state">還沒有任何資產帳戶，用上面的表單新增第一筆吧。</p>
+            <div id="finance-assets-list"></div>
+
+            <h3 class="finance-section-title">負債</h3>
+            <p id="finance-liabilities-empty" class="empty-state">目前沒有記錄任何負債。</p>
+            <div id="finance-liabilities-list"></div>
         </div>
 
         <div class="card" id="notion-card" data-tab="notion" style="display:none;">

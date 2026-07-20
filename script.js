@@ -115,6 +115,7 @@ async function showLoggedIn(user) {
   await initTodosForUser(user);
   await initGoalsForUser();
   await initReflectionsForUser();
+  await initFinanceForUser();
 }
 
 function showLoggedOut() {
@@ -129,6 +130,7 @@ function showLoggedOut() {
   initTodosForGuest();
   initGoalsForGuest();
   initReflectionsForGuest();
+  initFinanceForGuest();
 }
 
 async function logout() {
@@ -449,13 +451,19 @@ function renderNotionTable(schema, entries) {
 
   const thead = document.createElement("thead");
   const headRow = document.createElement("tr");
-  headRow.innerHTML = "<th>項目</th>";
+
+  const titleTh = document.createElement("th");
+  titleTh.innerText = "項目";
+  headRow.appendChild(titleTh);
+
   schema.fields.forEach(function (field) {
     const th = document.createElement("th");
     th.innerText = field.key;
     headRow.appendChild(th);
   });
-  headRow.innerHTML += "<th></th>";
+
+  headRow.appendChild(document.createElement("th")); // 操作按鈕欄位，不需要標題文字
+
   thead.appendChild(headRow);
   table.appendChild(thead);
 
@@ -1815,7 +1823,7 @@ function updatePlayerPanel() {
   if (playerLevel) playerLevel.innerText = `等級: Lv.${level}`;
   if (playerExp) playerExp.innerText = `經驗值：${currentLevelExp} / 100 EXP`;
   if (expProgress) expProgress.style.width = `${currentLevelExp}%`;
-  if (wealthStat) wealthStat.innerText = `財富：儲蓄率 ${savingRate}%`;
+  if (wealthStat) wealthStat.innerText = `財富：淨資產 $${financeNetWorth.toLocaleString()}`;
   if (healthStat) healthStat.innerText = `健康：${healthScore} / 100`;
   if (goalStat) goalStat.innerText = `目標：${completedGoals} / ${totalGoals}`;
 }
@@ -1828,32 +1836,248 @@ const expProgress = document.getElementById("exp-progress");
 // ===================================================================
 
 // ============財============富============面============板============
-const finance = {
-  cash: 1074,
-  investment: 50000,
-  crypto: 3000,
-  income: 35000,
-  expense: 33000,
-};
-const totalAsset = finance.cash + finance.investment + finance.crypto;
-const saving = finance.income - finance.expense;
-const savingRate = ((saving / finance.income) * 100).toFixed(1);
+// Phase 1（資產總覽／淨資產快照）：帳戶資料改讀寫 Supabase 的 finance_accounts 表。
+// 每個帳戶分「資產」或「負債」，並細分類型（現金/銀行/投資/保單/加密貨幣/其他），
+// 對應 Development Log #010 決策四十一的分期規劃。
+// 收支記錄、預算比對、現金流拆分屬於 Phase 2/3，這裡先不處理。
+let financeAccounts = [];
+// 給玩家面板用的即時淨資產（決策：Phase 1 先用「淨資產」取代原本假資料算出的「儲蓄率」，
+// 等 Phase 2 有真實收支資料後，只新增儲蓄率顯示，不覆蓋淨資產顯示）。
+let financeNetWorth = 0;
 
-// 加上元素存在檢查：如果這張卡片沒出現在目前這份 HTML 裡（例如朋友測試版只留 4 張卡），
-// 就跳過不寫，避免整支 script 因為 null.innerText 而中斷，影響到後面 Todo/Goal/Reflection 的初始化。
-function setTextIfExists(elementId, text) {
-  const element = document.getElementById(elementId);
-  if (element) {
-    element.innerText = text;
+const DEMO_FINANCE_ACCOUNTS = [
+  { id: "demo-finance-1", name: "示範銀行", purpose: "薪資帳戶", category: "asset", account_type: "銀行", balance: 50000 },
+  { id: "demo-finance-2", name: "示範券商", purpose: "投資帳戶", category: "asset", account_type: "投資", balance: 30000 },
+  { id: "demo-finance-3", name: "示範保單", purpose: "儲蓄險", category: "liability", account_type: "保單", balance: 5000 }
+];
+
+const financeNameInput = document.getElementById("finance-name-input");
+const financePurposeInput = document.getElementById("finance-purpose-input");
+const financeCategorySelect = document.getElementById("finance-category-select");
+const financeTypeSelect = document.getElementById("finance-type-select");
+const financeBalanceInput = document.getElementById("finance-balance-input");
+const financeAddButton = document.getElementById("finance-add-button");
+const financeAssetsList = document.getElementById("finance-assets-list");
+const financeLiabilitiesList = document.getElementById("finance-liabilities-list");
+const financeAssetsEmpty = document.getElementById("finance-assets-empty");
+const financeLiabilitiesEmpty = document.getElementById("finance-liabilities-empty");
+const financeTotalAssetsText = document.getElementById("finance-total-assets");
+const financeTotalLiabilitiesText = document.getElementById("finance-total-liabilities");
+const financeNetWorthText = document.getElementById("finance-net-worth");
+
+async function loadFinanceAccountsFromSupabase() {
+  const { data, error } = await supabaseClient
+    .from("finance_accounts")
+    .select("*")
+    .eq("user_id", currentUser.id)
+    .order("display_order", { ascending: true });
+
+  if (error) {
+    console.log("讀取財務帳戶失敗", error);
+    financeAccounts = [];
+    return;
   }
+
+  financeAccounts = data.map(row => ({
+    id: row.id,
+    name: row.name,
+    purpose: row.purpose,
+    category: row.category,
+    account_type: row.account_type,
+    balance: Number(row.balance)
+  }));
 }
 
-setTextIfExists("cash", `💵 現金：$${finance.cash}`);
-setTextIfExists("investment", `💹 股票：$${finance.investment}`);
-setTextIfExists("crypto", `🪙 加密貨幣：$${finance.crypto}`);
-setTextIfExists("income", `🏧 收入：$${finance.income}`);
-setTextIfExists("expense", `🧾 支出：$${finance.expense}`);
-setTextIfExists("finance", `💰 總資產：$${totalAsset}`);
+async function initFinanceForUser() {
+  await loadFinanceAccountsFromSupabase();
+  renderFinanceAccounts();
+}
+
+function initFinanceForGuest() {
+  financeAccounts = DEMO_FINANCE_ACCOUNTS.map(item => ({ ...item }));
+  renderFinanceAccounts();
+}
+
+async function addFinanceAccount() {
+  const name = financeNameInput.value.trim();
+  const purpose = financePurposeInput.value.trim();
+  const category = financeCategorySelect.value;
+  const accountType = financeTypeSelect.value;
+  const balance = Number(financeBalanceInput.value) || 0;
+
+  if (!name) return;
+
+  if (currentUser) {
+    const { data, error } = await supabaseClient
+      .from("finance_accounts")
+      .insert({
+        user_id: currentUser.id,
+        name,
+        purpose,
+        category,
+        account_type: accountType,
+        balance,
+        display_order: financeAccounts.length
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.log("新增財務帳戶失敗", error);
+      alert("新增失敗，請稍後再試一次。");
+      return;
+    }
+
+    financeAccounts.push({
+      id: data.id,
+      name: data.name,
+      purpose: data.purpose,
+      category: data.category,
+      account_type: data.account_type,
+      balance: Number(data.balance)
+    });
+  } else {
+    financeAccounts.push({
+      id: `demo-finance-${Date.now()}`,
+      name,
+      purpose,
+      category,
+      account_type: accountType,
+      balance
+    });
+  }
+
+  financeNameInput.value = "";
+  financePurposeInput.value = "";
+  financeBalanceInput.value = "";
+  renderFinanceAccounts();
+}
+
+async function deleteFinanceAccount(id) {
+  if (!confirm("確定要刪除這個帳戶嗎？")) return;
+
+  if (currentUser) {
+    const { error } = await supabaseClient.from("finance_accounts").delete().eq("id", id);
+    if (error) {
+      console.log("刪除財務帳戶失敗", error);
+      return;
+    }
+  }
+
+  financeAccounts = financeAccounts.filter(account => account.id !== id);
+  renderFinanceAccounts();
+}
+
+async function saveFinanceBalance(id, newBalance) {
+  if (currentUser) {
+    const { error } = await supabaseClient
+      .from("finance_accounts")
+      .update({ balance: newBalance, updated_at: new Date().toISOString() })
+      .eq("id", id);
+
+    if (error) {
+      console.log("更新財務帳戶餘額失敗", error);
+      alert("更新失敗，請稍後再試一次。");
+      return false;
+    }
+  }
+
+  const account = financeAccounts.find(item => item.id === id);
+  if (account) account.balance = newBalance;
+  return true;
+}
+
+// 就地編輯餘額：點數字變成輸入框，Enter 或失焦時存檔，跟 Notion 表格「點哪格改哪格」同一套邏輯。
+function enterBalanceEditMode(balanceEl, account) {
+  const input = document.createElement("input");
+  input.type = "number";
+  input.value = account.balance;
+
+  function commit() {
+    const newBalance = Number(input.value) || 0;
+    saveFinanceBalance(account.id, newBalance).then(function (ok) {
+      if (ok) renderFinanceAccounts();
+    });
+  }
+
+  input.addEventListener("blur", commit);
+  input.addEventListener("keydown", function (event) {
+    if (event.key === "Enter") input.blur();
+  });
+
+  balanceEl.innerHTML = "";
+  balanceEl.appendChild(input);
+  input.focus();
+  input.select();
+}
+
+function buildFinanceAccountItem(account) {
+  const item = document.createElement("div");
+  item.className = "finance-item";
+
+  const info = document.createElement("div");
+  info.className = "finance-item-info";
+
+  const name = document.createElement("div");
+  name.className = "finance-item-name";
+  name.textContent = account.name;
+
+  const meta = document.createElement("div");
+  meta.className = "finance-item-meta";
+  meta.textContent = [account.purpose, account.account_type].filter(Boolean).join(" · ");
+
+  info.appendChild(name);
+  info.appendChild(meta);
+
+  const balance = document.createElement("div");
+  balance.className = "finance-item-balance";
+  balance.textContent = `$${account.balance.toLocaleString()}`;
+  balance.title = "點一下可以編輯金額";
+  balance.addEventListener("click", function () {
+    enterBalanceEditMode(balance, account);
+  });
+
+  const deleteButton = document.createElement("button");
+  deleteButton.textContent = "刪除";
+  deleteButton.addEventListener("click", function () {
+    deleteFinanceAccount(account.id);
+  });
+
+  item.appendChild(info);
+  item.appendChild(balance);
+  item.appendChild(deleteButton);
+
+  return item;
+}
+
+function renderFinanceAccounts() {
+  const assets = financeAccounts.filter(account => account.category === "asset");
+  const liabilities = financeAccounts.filter(account => account.category === "liability");
+
+  financeAssetsList.innerHTML = "";
+  assets.forEach(function (account) {
+    financeAssetsList.appendChild(buildFinanceAccountItem(account));
+  });
+  financeAssetsEmpty.style.display = assets.length > 0 ? "none" : "block";
+
+  financeLiabilitiesList.innerHTML = "";
+  liabilities.forEach(function (account) {
+    financeLiabilitiesList.appendChild(buildFinanceAccountItem(account));
+  });
+  financeLiabilitiesEmpty.style.display = liabilities.length > 0 ? "none" : "block";
+
+  const totalAssets = assets.reduce((sum, account) => sum + account.balance, 0);
+  const totalLiabilities = liabilities.reduce((sum, account) => sum + account.balance, 0);
+  financeNetWorth = totalAssets - totalLiabilities;
+
+  financeTotalAssetsText.innerText = `總資產：$${totalAssets.toLocaleString()}`;
+  financeTotalLiabilitiesText.innerText = `總負債：$${totalLiabilities.toLocaleString()}`;
+  financeNetWorthText.innerText = `淨資產：$${financeNetWorth.toLocaleString()}`;
+
+  updatePlayerPanel();
+}
+
+financeAddButton.addEventListener("click", addFinanceAccount);
 // ===================================================================
 
 // ============健============康============面============板============

@@ -178,7 +178,8 @@ Deno.serve(async (req) => {
         return json({ success: false, error: "新增失敗，請確認欄位內容是否符合 Notion 資料庫的設定" });
       }
 
-      return json({ success: true });
+      const createdPage = await createRes.json();
+      return json({ success: true, pageId: createdPage.id });
     }
 
     // action === "update"
