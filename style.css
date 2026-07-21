@@ -642,6 +642,29 @@ h1{
     color: #f3f4f6;
 }
 
+.finance-item-editing {
+    flex-wrap: wrap;
+}
+
+.finance-item-editing input[type="text"] {
+    flex: 1;
+    min-width: 80px;
+}
+
+.finance-item-editing input,
+.finance-item-editing select {
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid #22c55e;
+    background: #1f2937;
+    color: #f3f4f6;
+    font-size: 13px;
+}
+
+.finance-item-editing input[type="number"] {
+    width: 90px;
+}
+
 .card{
     background:#1f2937;
     padding:20px;

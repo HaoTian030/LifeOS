@@ -1968,47 +1968,101 @@ async function deleteFinanceAccount(id) {
   renderFinanceAccounts();
 }
 
-async function saveFinanceBalance(id, newBalance) {
+const ACCOUNT_TYPE_OPTIONS = ["現金", "銀行", "投資", "保單", "加密貨幣", "其他"];
+const CATEGORY_OPTIONS = [
+  { value: "asset", label: "資產" },
+  { value: "liability", label: "負債" }
+];
+
+async function saveFinanceAccountEdits(id, updates) {
   if (currentUser) {
     const { error } = await supabaseClient
       .from("finance_accounts")
-      .update({ balance: newBalance, updated_at: new Date().toISOString() })
+      .update({ ...updates, updated_at: new Date().toISOString() })
       .eq("id", id);
 
     if (error) {
-      console.log("更新財務帳戶餘額失敗", error);
+      console.log("更新財務帳戶失敗", error);
       alert("更新失敗，請稍後再試一次。");
       return false;
     }
   }
 
   const account = financeAccounts.find(item => item.id === id);
-  if (account) account.balance = newBalance;
+  if (account) Object.assign(account, updates);
   return true;
 }
 
-// 就地編輯餘額：點數字變成輸入框，Enter 或失焦時存檔，跟 Notion 表格「點哪格改哪格」同一套邏輯。
-function enterBalanceEditMode(balanceEl, account) {
-  const input = document.createElement("input");
-  input.type = "number";
-  input.value = account.balance;
+// 就地編輯：點「編輯」把整列換成輸入框（名稱／用途／分類／類型／金額都能改），
+// 「儲存」或 Enter 存檔，「取消」還原，不用刪除重加。
+function buildFinanceAccountEditForm(account, onCancel) {
+  const form = document.createElement("div");
+  form.className = "finance-item finance-item-editing";
 
-  function commit() {
-    const newBalance = Number(input.value) || 0;
-    saveFinanceBalance(account.id, newBalance).then(function (ok) {
-      if (ok) renderFinanceAccounts();
-    });
-  }
+  const nameInput = document.createElement("input");
+  nameInput.type = "text";
+  nameInput.value = account.name;
 
-  input.addEventListener("blur", commit);
-  input.addEventListener("keydown", function (event) {
-    if (event.key === "Enter") input.blur();
+  const purposeInput = document.createElement("input");
+  purposeInput.type = "text";
+  purposeInput.value = account.purpose || "";
+
+  const categorySelect = document.createElement("select");
+  CATEGORY_OPTIONS.forEach(function (opt) {
+    const option = document.createElement("option");
+    option.value = opt.value;
+    option.textContent = opt.label;
+    if (opt.value === account.category) option.selected = true;
+    categorySelect.appendChild(option);
   });
 
-  balanceEl.innerHTML = "";
-  balanceEl.appendChild(input);
-  input.focus();
-  input.select();
+  const typeSelect = document.createElement("select");
+  ACCOUNT_TYPE_OPTIONS.forEach(function (type) {
+    const option = document.createElement("option");
+    option.value = type;
+    option.textContent = type;
+    if (type === account.account_type) option.selected = true;
+    typeSelect.appendChild(option);
+  });
+
+  const balanceInput = document.createElement("input");
+  balanceInput.type = "number";
+  balanceInput.value = account.balance;
+
+  const saveButton = document.createElement("button");
+  saveButton.textContent = "儲存";
+  saveButton.addEventListener("click", function () {
+    const updates = {
+      name: nameInput.value.trim() || account.name,
+      purpose: purposeInput.value.trim(),
+      category: categorySelect.value,
+      account_type: typeSelect.value,
+      balance: Number(balanceInput.value) || 0
+    };
+    saveFinanceAccountEdits(account.id, updates).then(function (ok) {
+      if (ok) renderFinanceAccounts();
+    });
+  });
+
+  const cancelButton = document.createElement("button");
+  cancelButton.textContent = "取消";
+  cancelButton.addEventListener("click", onCancel);
+
+  [nameInput, purposeInput].forEach(function (input) {
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Enter") saveButton.click();
+    });
+  });
+
+  form.appendChild(nameInput);
+  form.appendChild(purposeInput);
+  form.appendChild(categorySelect);
+  form.appendChild(typeSelect);
+  form.appendChild(balanceInput);
+  form.appendChild(saveButton);
+  form.appendChild(cancelButton);
+
+  return form;
 }
 
 function buildFinanceAccountItem(account) {
@@ -2032,9 +2086,14 @@ function buildFinanceAccountItem(account) {
   const balance = document.createElement("div");
   balance.className = "finance-item-balance";
   balance.textContent = `$${account.balance.toLocaleString()}`;
-  balance.title = "點一下可以編輯金額";
-  balance.addEventListener("click", function () {
-    enterBalanceEditMode(balance, account);
+
+  const editButton = document.createElement("button");
+  editButton.textContent = "編輯";
+  editButton.addEventListener("click", function () {
+    const editForm = buildFinanceAccountEditForm(account, function () {
+      editForm.replaceWith(item);
+    });
+    item.replaceWith(editForm);
   });
 
   const deleteButton = document.createElement("button");
@@ -2045,6 +2104,7 @@ function buildFinanceAccountItem(account) {
 
   item.appendChild(info);
   item.appendChild(balance);
+  item.appendChild(editButton);
   item.appendChild(deleteButton);
 
   return item;
