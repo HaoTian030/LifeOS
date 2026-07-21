@@ -1903,9 +1903,21 @@ async function addFinanceAccount() {
   const purpose = financePurposeInput.value.trim();
   const category = financeCategorySelect.value;
   const accountType = financeTypeSelect.value;
-  const balance = Number(financeBalanceInput.value) || 0;
+  const balanceRaw = financeBalanceInput.value.trim();
 
-  if (!name) return;
+  if (!name) {
+    alert("請輸入帳戶名稱。");
+    financeNameInput.focus();
+    return;
+  }
+
+  if (balanceRaw === "" || isNaN(Number(balanceRaw))) {
+    alert("請輸入金額（可以是 0，但不能留空）。");
+    financeBalanceInput.focus();
+    return;
+  }
+
+  const balance = Number(balanceRaw);
 
   if (currentUser) {
     const { data, error } = await supabaseClient
@@ -2032,12 +2044,27 @@ function buildFinanceAccountEditForm(account, onCancel) {
   const saveButton = document.createElement("button");
   saveButton.textContent = "儲存";
   saveButton.addEventListener("click", function () {
+    const trimmedName = nameInput.value.trim();
+    const balanceRaw = balanceInput.value.trim();
+
+    if (!trimmedName) {
+      alert("帳戶名稱不能留空。");
+      nameInput.focus();
+      return;
+    }
+
+    if (balanceRaw === "" || isNaN(Number(balanceRaw))) {
+      alert("請輸入金額（可以是 0，但不能留空）。");
+      balanceInput.focus();
+      return;
+    }
+
     const updates = {
-      name: nameInput.value.trim() || account.name,
+      name: trimmedName,
       purpose: purposeInput.value.trim(),
       category: categorySelect.value,
       account_type: typeSelect.value,
-      balance: Number(balanceInput.value) || 0
+      balance: Number(balanceRaw)
     };
     saveFinanceAccountEdits(account.id, updates).then(function (ok) {
       if (ok) renderFinanceAccounts();
