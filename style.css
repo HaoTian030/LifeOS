@@ -736,6 +736,11 @@ h1{
     font-weight: 600;
 }
 
+.finance-tx-modal-list {
+    overflow-y: auto;
+    max-height: 40vh;
+}
+
 .card{
     background:#1f2937;
     padding:20px;

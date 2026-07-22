@@ -2239,6 +2239,26 @@ function renderFinanceTransactions() {
 
 financeTxAddButton.addEventListener("click", addFinanceTransaction);
 
+const financeTxOpenModalButton = document.getElementById("finance-tx-open-modal-button");
+const financeTxModalOverlay = document.getElementById("finance-tx-modal-overlay");
+const financeTxModalClose = document.getElementById("finance-tx-modal-close");
+
+financeTxOpenModalButton.addEventListener("click", function () {
+  financeTxModalOverlay.style.display = "flex";
+});
+
+function closeFinanceTxModal() {
+  financeTxModalOverlay.style.display = "none";
+}
+
+financeTxModalClose.addEventListener("click", closeFinanceTxModal);
+
+financeTxModalOverlay.addEventListener("click", function (event) {
+  if (event.target === financeTxModalOverlay) {
+    closeFinanceTxModal();
+  }
+});
+
 async function addFinanceAccount() {
   const name = financeNameInput.value.trim();
   const purpose = financePurposeInput.value.trim();
