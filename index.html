@@ -169,19 +169,13 @@
 
             <div class="finance-input-row">
                 <input id="finance-name-input" type="text" placeholder="帳戶名稱（例如：土地銀行）">
-                <input id="finance-purpose-input" type="text" placeholder="用途（例如：薪資帳戶）">
+                <input id="finance-purpose-input" type="text" placeholder="用途（例如：負責日常生活開銷）">
                 <select id="finance-category-select">
                     <option value="asset">資產</option>
                     <option value="liability">負債</option>
                 </select>
-                <select id="finance-type-select">
-                    <option value="現金">現金</option>
-                    <option value="銀行">銀行</option>
-                    <option value="投資">投資</option>
-                    <option value="保單">保單</option>
-                    <option value="加密貨幣">加密貨幣</option>
-                    <option value="其他">其他</option>
-                </select>
+                <input id="finance-type-input" type="text" list="finance-type-list" placeholder="資產類型（可輸入新類型）">
+                <datalist id="finance-type-list"></datalist>
                 <input id="finance-balance-input" type="number" placeholder="金額">
                 <button id="finance-add-button" type="button">新增帳戶</button>
             </div>

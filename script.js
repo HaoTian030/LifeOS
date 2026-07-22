@@ -1837,24 +1837,30 @@ const expProgress = document.getElementById("exp-progress");
 
 // ============財============富============面============板============
 // Phase 1（資產總覽／淨資產快照）：帳戶資料改讀寫 Supabase 的 finance_accounts 表。
-// 每個帳戶分「資產」或「負債」，並細分類型（現金/銀行/投資/保單/加密貨幣/其他），
+// 每個帳戶分「資產」或「負債」，並細分類型（現金/銀行存款/股票/ETF/基金/保單/加密貨幣/信用卡/其他），
 // 對應 Development Log #010 決策四十一的分期規劃。
+// account_type 欄位本身是純文字，前端用 <input list> + <datalist> 呈現，
+// 使用者可以直接輸入清單外的新類型，之後這個新類型也會自動出現在建議清單裡（見本輪交接決策）。
 // 收支記錄、預算比對、現金流拆分屬於 Phase 2/3，這裡先不處理。
 let financeAccounts = [];
 // 給玩家面板用的即時淨資產（決策：Phase 1 先用「淨資產」取代原本假資料算出的「儲蓄率」，
 // 等 Phase 2 有真實收支資料後，只新增儲蓄率顯示，不覆蓋淨資產顯示）。
 let financeNetWorth = 0;
 
+// 資產類型的預設建議清單，只是 datalist 的起始選項，不是強制限制。
+const ACCOUNT_TYPE_PRESETS = ["現金", "銀行存款", "股票", "ETF", "基金", "保單", "加密貨幣", "信用卡", "其他"];
+
 const DEMO_FINANCE_ACCOUNTS = [
-  { id: "demo-finance-1", name: "示範銀行", purpose: "薪資帳戶", category: "asset", account_type: "銀行", balance: 50000 },
-  { id: "demo-finance-2", name: "示範券商", purpose: "投資帳戶", category: "asset", account_type: "投資", balance: 30000 },
+  { id: "demo-finance-1", name: "示範銀行", purpose: "負責日常生活開銷", category: "asset", account_type: "銀行存款", balance: 50000 },
+  { id: "demo-finance-2", name: "示範券商", purpose: "股票投資帳戶", category: "asset", account_type: "股票", balance: 30000 },
   { id: "demo-finance-3", name: "示範保單", purpose: "儲蓄險", category: "liability", account_type: "保單", balance: 5000 }
 ];
 
 const financeNameInput = document.getElementById("finance-name-input");
 const financePurposeInput = document.getElementById("finance-purpose-input");
 const financeCategorySelect = document.getElementById("finance-category-select");
-const financeTypeSelect = document.getElementById("finance-type-select");
+const financeTypeInput = document.getElementById("finance-type-input");
+const financeTypeList = document.getElementById("finance-type-list");
 const financeBalanceInput = document.getElementById("finance-balance-input");
 const financeAddButton = document.getElementById("finance-add-button");
 const financeAssetsList = document.getElementById("finance-assets-list");
@@ -1898,16 +1904,38 @@ function initFinanceForGuest() {
   renderFinanceAccounts();
 }
 
+// 資產類型建議清單 = 預設清單 + 使用者自己輸入過、目前仍在用的類型（去重）。
+// 每次帳戶資料變動（新增/刪除/編輯/重新載入）都會重建一次，讓自訂類型自動被記住、
+// 之後在任何一個 datalist（新增表單／就地編輯表單共用同一個 <datalist>）都能選到。
+function refreshAccountTypeSuggestions() {
+  if (!financeTypeList) return;
+  const usedTypes = financeAccounts.map(account => account.account_type).filter(Boolean);
+  const suggestions = [...new Set([...ACCOUNT_TYPE_PRESETS, ...usedTypes])];
+
+  financeTypeList.innerHTML = "";
+  suggestions.forEach(function (type) {
+    const option = document.createElement("option");
+    option.value = type;
+    financeTypeList.appendChild(option);
+  });
+}
+
 async function addFinanceAccount() {
   const name = financeNameInput.value.trim();
   const purpose = financePurposeInput.value.trim();
   const category = financeCategorySelect.value;
-  const accountType = financeTypeSelect.value;
+  const accountType = financeTypeInput.value.trim();
   const balanceRaw = financeBalanceInput.value.trim();
 
   if (!name) {
     alert("請輸入帳戶名稱。");
     financeNameInput.focus();
+    return;
+  }
+
+  if (!accountType) {
+    alert("請輸入或選擇資產類型。");
+    financeTypeInput.focus();
     return;
   }
 
@@ -1961,6 +1989,7 @@ async function addFinanceAccount() {
 
   financeNameInput.value = "";
   financePurposeInput.value = "";
+  financeTypeInput.value = "";
   financeBalanceInput.value = "";
   renderFinanceAccounts();
 }
@@ -1980,7 +2009,6 @@ async function deleteFinanceAccount(id) {
   renderFinanceAccounts();
 }
 
-const ACCOUNT_TYPE_OPTIONS = ["現金", "銀行", "投資", "保單", "加密貨幣", "其他"];
 const CATEGORY_OPTIONS = [
   { value: "asset", label: "資產" },
   { value: "liability", label: "負債" }
@@ -2028,14 +2056,10 @@ function buildFinanceAccountEditForm(account, onCancel) {
     categorySelect.appendChild(option);
   });
 
-  const typeSelect = document.createElement("select");
-  ACCOUNT_TYPE_OPTIONS.forEach(function (type) {
-    const option = document.createElement("option");
-    option.value = type;
-    option.textContent = type;
-    if (type === account.account_type) option.selected = true;
-    typeSelect.appendChild(option);
-  });
+  const typeInput = document.createElement("input");
+  typeInput.type = "text";
+  typeInput.setAttribute("list", "finance-type-list");
+  typeInput.value = account.account_type || "";
 
   const balanceInput = document.createElement("input");
   balanceInput.type = "number";
@@ -2047,9 +2071,17 @@ function buildFinanceAccountEditForm(account, onCancel) {
     const trimmedName = nameInput.value.trim();
     const balanceRaw = balanceInput.value.trim();
 
+    const trimmedType = typeInput.value.trim();
+
     if (!trimmedName) {
       alert("帳戶名稱不能留空。");
       nameInput.focus();
+      return;
+    }
+
+    if (!trimmedType) {
+      alert("請輸入或選擇資產類型。");
+      typeInput.focus();
       return;
     }
 
@@ -2063,7 +2095,7 @@ function buildFinanceAccountEditForm(account, onCancel) {
       name: trimmedName,
       purpose: purposeInput.value.trim(),
       category: categorySelect.value,
-      account_type: typeSelect.value,
+      account_type: trimmedType,
       balance: Number(balanceRaw)
     };
     saveFinanceAccountEdits(account.id, updates).then(function (ok) {
@@ -2084,7 +2116,7 @@ function buildFinanceAccountEditForm(account, onCancel) {
   form.appendChild(nameInput);
   form.appendChild(purposeInput);
   form.appendChild(categorySelect);
-  form.appendChild(typeSelect);
+  form.appendChild(typeInput);
   form.appendChild(balanceInput);
   form.appendChild(saveButton);
   form.appendChild(cancelButton);
@@ -2138,6 +2170,8 @@ function buildFinanceAccountItem(account) {
 }
 
 function renderFinanceAccounts() {
+  refreshAccountTypeSuggestions();
+
   const assets = financeAccounts.filter(account => account.category === "asset");
   const liabilities = financeAccounts.filter(account => account.category === "liability");
 
