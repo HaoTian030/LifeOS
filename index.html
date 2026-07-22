@@ -189,6 +189,36 @@
             <div id="finance-liabilities-list"></div>
         </div>
 
+        <div class="card" id="finance-transactions-card" data-tab="finance" style="display:none;">
+            <h2>🧾 記帳</h2>
+
+            <div class="finance-tx-type-toggle" id="finance-tx-type-toggle">
+                <button type="button" class="finance-tx-type-button is-active" data-tx-type="expense">⬇️ 支出</button>
+                <button type="button" class="finance-tx-type-button" data-tx-type="income">⬆️ 收入</button>
+                <button type="button" class="finance-tx-type-button" data-tx-type="transfer">🔁 轉帳</button>
+            </div>
+
+            <div class="finance-tx-input-row">
+                <div id="finance-tx-single-account-field" class="finance-tx-field-group">
+                    <select id="finance-tx-account-select"></select>
+                </div>
+
+                <div id="finance-tx-transfer-fields" class="finance-tx-field-group finance-tx-transfer-fields" style="display:none;">
+                    <select id="finance-tx-from-select"></select>
+                    <span class="finance-tx-arrow">→</span>
+                    <select id="finance-tx-to-select"></select>
+                </div>
+
+                <input id="finance-tx-amount-input" type="number" placeholder="金額">
+                <input id="finance-tx-date-input" type="date">
+                <input id="finance-tx-category-input" type="text" placeholder="用途備註（自由輸入）">
+                <button id="finance-tx-add-button" type="button">新增紀錄</button>
+            </div>
+
+            <p id="finance-tx-empty" class="empty-state">還沒有任何交易紀錄，用上面的表單開始記帳吧。</p>
+            <div id="finance-tx-list"></div>
+        </div>
+
         <div class="card" id="notion-card" data-tab="notion" style="display:none;">
             <h2>📝 Notion 筆記</h2>
 

@@ -1879,6 +1879,70 @@ const financeTotalAssetsText = document.getElementById("finance-total-assets");
 const financeTotalLiabilitiesText = document.getElementById("finance-total-liabilities");
 const financeNetWorthText = document.getElementById("finance-net-worth");
 
+// ---- Phase 2：finance_transactions（記帳） ----
+// 決策（本輪交接）：記帳同時自動連動帳戶餘額，不需要使用者事後手動對帳。
+// type 分三種：income／expense（單一帳戶）、transfer（來源/目標兩個帳戶）。
+// 交易列表中轉帳只顯示一筆「A → B」，底層仍各自增減兩個帳戶餘額（見本輪交接討論）。
+let financeTransactions = [];
+let selectedTxType = "expense";
+
+const DEMO_FINANCE_TRANSACTIONS = [
+  { id: "demo-tx-1", type: "income", account_id: "demo-finance-1", from_account_id: null, to_account_id: null, amount: 52000, category: "薪資", occurred_on: new Date().toISOString().split("T")[0] },
+  { id: "demo-tx-2", type: "expense", account_id: "demo-finance-1", from_account_id: null, to_account_id: null, amount: 3000, category: "日本旅費預留", occurred_on: new Date().toISOString().split("T")[0] },
+  { id: "demo-tx-3", type: "transfer", account_id: null, from_account_id: "demo-finance-1", to_account_id: "demo-finance-4", amount: 8200, category: "信用卡結算", occurred_on: new Date().toISOString().split("T")[0] }
+];
+
+const financeTxTypeButtons = document.querySelectorAll("#finance-tx-type-toggle .finance-tx-type-button");
+const financeTxSingleAccountField = document.getElementById("finance-tx-single-account-field");
+const financeTxTransferFields = document.getElementById("finance-tx-transfer-fields");
+const financeTxAccountSelect = document.getElementById("finance-tx-account-select");
+const financeTxFromSelect = document.getElementById("finance-tx-from-select");
+const financeTxToSelect = document.getElementById("finance-tx-to-select");
+const financeTxAmountInput = document.getElementById("finance-tx-amount-input");
+const financeTxDateInput = document.getElementById("finance-tx-date-input");
+const financeTxCategoryInput = document.getElementById("finance-tx-category-input");
+const financeTxAddButton = document.getElementById("finance-tx-add-button");
+const financeTxList = document.getElementById("finance-tx-list");
+const financeTxEmpty = document.getElementById("finance-tx-empty");
+
+// 類型切換（支出/收入/轉帳）：切換單一帳戶欄位跟轉帳來源/目標欄位的顯示。
+financeTxTypeButtons.forEach(function (button) {
+  button.addEventListener("click", function () {
+    selectedTxType = button.dataset.txType;
+    financeTxTypeButtons.forEach(function (btn) {
+      btn.classList.toggle("is-active", btn === button);
+    });
+    const isTransfer = selectedTxType === "transfer";
+    financeTxSingleAccountField.style.display = isTransfer ? "none" : "";
+    financeTxTransferFields.style.display = isTransfer ? "flex" : "none";
+  });
+});
+
+// 記帳表單的帳戶下拉選單，直接動態抓目前所有帳戶（不維護固定清單），
+// 新增/刪除/編輯帳戶後都會重新呼叫這個函式同步（見 renderFinanceAccounts）。
+function refreshFinanceTxAccountOptions() {
+  [financeTxAccountSelect, financeTxFromSelect, financeTxToSelect].forEach(function (selectEl) {
+    if (!selectEl) return;
+    const previousValue = selectEl.value;
+    selectEl.innerHTML = "";
+    financeAccounts.forEach(function (account) {
+      const option = document.createElement("option");
+      option.value = account.id;
+      option.textContent = account.name;
+      selectEl.appendChild(option);
+    });
+    if (previousValue && financeAccounts.some(function (a) { return a.id === previousValue; })) {
+      selectEl.value = previousValue;
+    }
+  });
+}
+
+// 日期欄位預設帶入今天，仍可手動編輯（供事後補登用）。
+function setFinanceTxDateToday() {
+  if (!financeTxDateInput) return;
+  financeTxDateInput.value = new Date().toISOString().split("T")[0];
+}
+
 async function loadFinanceAccountsFromSupabase() {
   const { data, error } = await supabaseClient
     .from("finance_accounts")
@@ -1902,14 +1966,46 @@ async function loadFinanceAccountsFromSupabase() {
   }));
 }
 
+async function loadFinanceTransactionsFromSupabase() {
+  const { data, error } = await supabaseClient
+    .from("finance_transactions")
+    .select("*")
+    .eq("user_id", currentUser.id)
+    .order("occurred_on", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.log("讀取交易紀錄失敗", error);
+    financeTransactions = [];
+    return;
+  }
+
+  financeTransactions = data.map(row => ({
+    id: row.id,
+    type: row.type,
+    account_id: row.account_id,
+    from_account_id: row.from_account_id,
+    to_account_id: row.to_account_id,
+    amount: Number(row.amount),
+    category: row.category,
+    occurred_on: row.occurred_on
+  }));
+}
+
 async function initFinanceForUser() {
   await loadFinanceAccountsFromSupabase();
+  await loadFinanceTransactionsFromSupabase();
+  setFinanceTxDateToday();
   renderFinanceAccounts();
+  renderFinanceTransactions();
 }
 
 function initFinanceForGuest() {
   financeAccounts = DEMO_FINANCE_ACCOUNTS.map(item => ({ ...item }));
+  financeTransactions = DEMO_FINANCE_TRANSACTIONS.map(item => ({ ...item }));
+  setFinanceTxDateToday();
   renderFinanceAccounts();
+  renderFinanceTransactions();
 }
 
 // 資產類型／負債類型建議清單 = 該分類的預設清單 + 使用者自己在「同一個分類」下輸入過、
@@ -1941,6 +2037,207 @@ function refreshAccountTypeSuggestions(category) {
 financeCategorySelect.addEventListener("change", function () {
   refreshAccountTypeSuggestions(financeCategorySelect.value);
 });
+
+// 記帳同時連動帳戶餘額（本輪交接決策）。direction: 1 = 套用（新增交易時），
+// -1 = 還原（刪除交易時，把餘額變動加回去）。income/expense 只影響一個帳戶，
+// transfer 影響來源/目標兩個帳戶，方向剛好相反。
+async function applyTransactionBalanceChange(type, accountId, fromAccountId, toAccountId, amount, direction) {
+  const changes = [];
+
+  if (type === "income") {
+    changes.push({ id: accountId, delta: amount * direction });
+  } else if (type === "expense") {
+    changes.push({ id: accountId, delta: -amount * direction });
+  } else if (type === "transfer") {
+    changes.push({ id: fromAccountId, delta: -amount * direction });
+    changes.push({ id: toAccountId, delta: amount * direction });
+  }
+
+  for (const change of changes) {
+    const account = financeAccounts.find(a => a.id === change.id);
+    if (!account) continue;
+    const newBalance = account.balance + change.delta;
+
+    if (currentUser) {
+      const { error } = await supabaseClient
+        .from("finance_accounts")
+        .update({ balance: newBalance, updated_at: new Date().toISOString() })
+        .eq("id", change.id);
+
+      if (error) {
+        console.log("更新帳戶餘額失敗", error);
+        alert("交易已記錄，但更新帳戶餘額時發生錯誤，請手動確認一下帳戶餘額。");
+        continue;
+      }
+    }
+    account.balance = newBalance;
+  }
+}
+
+async function addFinanceTransaction() {
+  const type = selectedTxType;
+  const amountRaw = financeTxAmountInput.value.trim();
+  const occurredOn = financeTxDateInput.value || new Date().toISOString().split("T")[0];
+  const category = financeTxCategoryInput.value.trim();
+
+  if (amountRaw === "" || isNaN(Number(amountRaw)) || Number(amountRaw) <= 0) {
+    alert("請輸入大於 0 的金額。");
+    financeTxAmountInput.focus();
+    return;
+  }
+  const amount = Number(amountRaw);
+
+  let accountId = null;
+  let fromAccountId = null;
+  let toAccountId = null;
+
+  if (type === "transfer") {
+    fromAccountId = financeTxFromSelect.value;
+    toAccountId = financeTxToSelect.value;
+
+    if (!fromAccountId || !toAccountId) {
+      alert("請選擇轉帳的來源與目標帳戶。");
+      return;
+    }
+    if (fromAccountId === toAccountId) {
+      alert("來源帳戶跟目標帳戶不能相同。");
+      return;
+    }
+  } else {
+    accountId = financeTxAccountSelect.value;
+    if (!accountId) {
+      alert("請先建立至少一個帳戶，才能開始記帳。");
+      return;
+    }
+  }
+
+  if (currentUser) {
+    const { data, error } = await supabaseClient
+      .from("finance_transactions")
+      .insert({
+        user_id: currentUser.id,
+        type,
+        account_id: accountId,
+        from_account_id: fromAccountId,
+        to_account_id: toAccountId,
+        amount,
+        category,
+        occurred_on: occurredOn
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.log("新增交易失敗", error);
+      alert("新增失敗，請稍後再試一次。");
+      return;
+    }
+
+    financeTransactions.unshift({
+      id: data.id,
+      type: data.type,
+      account_id: data.account_id,
+      from_account_id: data.from_account_id,
+      to_account_id: data.to_account_id,
+      amount: Number(data.amount),
+      category: data.category,
+      occurred_on: data.occurred_on
+    });
+  } else {
+    financeTransactions.unshift({
+      id: `demo-tx-${Date.now()}`,
+      type, account_id: accountId, from_account_id: fromAccountId, to_account_id: toAccountId,
+      amount, category, occurred_on: occurredOn
+    });
+  }
+
+  await applyTransactionBalanceChange(type, accountId, fromAccountId, toAccountId, amount, 1);
+
+  financeTxAmountInput.value = "";
+  financeTxCategoryInput.value = "";
+  setFinanceTxDateToday();
+  renderFinanceAccounts();
+  renderFinanceTransactions();
+}
+
+async function deleteFinanceTransaction(id) {
+  if (!confirm("確定要刪除這筆交易紀錄嗎？相關帳戶餘額會自動還原。")) return;
+
+  const tx = financeTransactions.find(t => t.id === id);
+  if (!tx) return;
+
+  if (currentUser) {
+    const { error } = await supabaseClient.from("finance_transactions").delete().eq("id", id);
+    if (error) {
+      console.log("刪除交易失敗", error);
+      alert("刪除失敗，請稍後再試一次。");
+      return;
+    }
+  }
+
+  await applyTransactionBalanceChange(tx.type, tx.account_id, tx.from_account_id, tx.to_account_id, tx.amount, -1);
+
+  financeTransactions = financeTransactions.filter(t => t.id !== id);
+  renderFinanceAccounts();
+  renderFinanceTransactions();
+}
+
+function getFinanceAccountName(id) {
+  const account = financeAccounts.find(a => a.id === id);
+  return account ? account.name : "（帳戶已刪除）";
+}
+
+function buildFinanceTransactionItem(tx) {
+  const item = document.createElement("div");
+  item.className = "finance-item";
+
+  const info = document.createElement("div");
+  info.className = "finance-item-info";
+
+  const title = document.createElement("div");
+  title.className = "finance-item-name";
+  const typeLabel = { income: "⬆️", expense: "⬇️", transfer: "🔁" }[tx.type] || "";
+  const defaultLabel = { income: "收入", expense: "支出", transfer: "轉帳" }[tx.type] || "";
+  title.textContent = `${typeLabel} ${tx.category || defaultLabel}`;
+
+  const meta = document.createElement("div");
+  meta.className = "finance-item-meta";
+  meta.textContent = tx.type === "transfer"
+    ? `${getFinanceAccountName(tx.from_account_id)} → ${getFinanceAccountName(tx.to_account_id)} · ${tx.occurred_on}`
+    : `${getFinanceAccountName(tx.account_id)} · ${tx.occurred_on}`;
+
+  info.appendChild(title);
+  info.appendChild(meta);
+
+  const amount = document.createElement("div");
+  amount.className = "finance-item-balance";
+  const sign = tx.type === "expense" ? "-" : tx.type === "income" ? "+" : "";
+  amount.textContent = `${sign}$${tx.amount.toLocaleString()}`;
+
+  const deleteButton = document.createElement("button");
+  deleteButton.textContent = "刪除";
+  deleteButton.addEventListener("click", function () {
+    deleteFinanceTransaction(tx.id);
+  });
+
+  item.appendChild(info);
+  item.appendChild(amount);
+  item.appendChild(deleteButton);
+
+  return item;
+}
+
+function renderFinanceTransactions() {
+  refreshFinanceTxAccountOptions();
+
+  financeTxList.innerHTML = "";
+  financeTransactions.forEach(function (tx) {
+    financeTxList.appendChild(buildFinanceTransactionItem(tx));
+  });
+  financeTxEmpty.style.display = financeTransactions.length > 0 ? "none" : "block";
+}
+
+financeTxAddButton.addEventListener("click", addFinanceTransaction);
 
 async function addFinanceAccount() {
   const name = financeNameInput.value.trim();
@@ -2203,6 +2500,7 @@ function buildFinanceAccountItem(account) {
 
 function renderFinanceAccounts() {
   refreshAccountTypeSuggestions(financeCategorySelect.value);
+  refreshFinanceTxAccountOptions();
 
   const assets = financeAccounts.filter(account => account.category === "asset");
   const liabilities = financeAccounts.filter(account => account.category === "liability");

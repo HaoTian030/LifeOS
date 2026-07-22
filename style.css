@@ -665,6 +665,77 @@ h1{
     width: 90px;
 }
 
+/* ============ 財務：記帳（Phase 2） ============ */
+.finance-tx-type-toggle {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.finance-tx-type-button {
+    flex: 1;
+    padding: 8px;
+    border: none;
+    border-radius: 8px;
+    background: #111827;
+    color: #9ca3af;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.finance-tx-type-button.is-active {
+    background: #22c55e;
+    color: #052e12;
+}
+
+.finance-tx-input-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 20px;
+    align-items: center;
+}
+
+.finance-tx-input-row input,
+.finance-tx-input-row select {
+    padding: 8px;
+    border-radius: 8px;
+    border: none;
+}
+
+.finance-tx-input-row input[type="text"] {
+    flex: 1;
+    min-width: 140px;
+}
+
+.finance-tx-input-row input[type="number"] {
+    width: 110px;
+}
+
+.finance-tx-field-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.finance-tx-transfer-fields select {
+    min-width: 100px;
+}
+
+.finance-tx-arrow {
+    color: #9ca3af;
+}
+
+#finance-tx-add-button {
+    padding: 8px 12px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    background: #22c55e;
+    color: #052e12;
+    font-weight: 600;
+}
+
 .card{
     background:#1f2937;
     padding:20px;
