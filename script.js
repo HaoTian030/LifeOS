@@ -1837,23 +1837,31 @@ const expProgress = document.getElementById("exp-progress");
 
 // ============財============富============面============板============
 // Phase 1（資產總覽／淨資產快照）：帳戶資料改讀寫 Supabase 的 finance_accounts 表。
-// 每個帳戶分「資產」或「負債」，並細分類型（現金/銀行存款/股票/ETF/基金/保單/加密貨幣/信用卡/其他），
-// 對應 Development Log #010 決策四十一的分期規劃。
+// 每個帳戶分「資產」或「負債」（Facts，見 DD #001），並依分類細分類型：
+// 資產類型（現金/銀行存款/股票/ETF/基金/保單/加密貨幣/其他）
+// 負債類型（信用卡未繳/房貸/車貸/信貸/其他）
+// 對應 Development Log #010 決策四十一的分期規劃，分類設計對應 DD #001。
 // account_type 欄位本身是純文字，前端用 <input list> + <datalist> 呈現，
-// 使用者可以直接輸入清單外的新類型，之後這個新類型也會自動出現在建議清單裡（見本輪交接決策）。
+// 依目前選的「資產/負債」動態切換要顯示哪一套建議清單，
+// 使用者可以直接輸入清單外的新類型，之後這個新類型也會自動出現在建議清單裡。
 // 收支記錄、預算比對、現金流拆分屬於 Phase 2/3，這裡先不處理。
 let financeAccounts = [];
 // 給玩家面板用的即時淨資產（決策：Phase 1 先用「淨資產」取代原本假資料算出的「儲蓄率」，
 // 等 Phase 2 有真實收支資料後，只新增儲蓄率顯示，不覆蓋淨資產顯示）。
 let financeNetWorth = 0;
 
-// 資產類型的預設建議清單，只是 datalist 的起始選項，不是強制限制。
-const ACCOUNT_TYPE_PRESETS = ["現金", "銀行存款", "股票", "ETF", "基金", "保單", "加密貨幣", "信用卡", "其他"];
+// 資產類型／負債類型的預設建議清單，只是 datalist 的起始選項，不是強制限制。
+// 依照 DD #001：資產/負債（本質分類）與用途（人生角色）是不同層級，
+// 「資產類型」跟「負債類型」也是兩套獨立的語意，不應該共用同一份清單
+//（例如信用卡未繳是負債類型，不是資產類型的一種）。
+const ASSET_TYPE_PRESETS = ["現金", "銀行存款", "股票", "ETF", "基金", "保單", "加密貨幣", "其他"];
+const LIABILITY_TYPE_PRESETS = ["信用卡未繳", "房貸", "車貸", "信貸", "其他"];
 
 const DEMO_FINANCE_ACCOUNTS = [
   { id: "demo-finance-1", name: "示範銀行", purpose: "負責日常生活開銷", category: "asset", account_type: "銀行存款", balance: 50000 },
   { id: "demo-finance-2", name: "示範券商", purpose: "股票投資帳戶", category: "asset", account_type: "股票", balance: 30000 },
-  { id: "demo-finance-3", name: "示範保單", purpose: "儲蓄險", category: "liability", account_type: "保單", balance: 5000 }
+  { id: "demo-finance-3", name: "示範保單", purpose: "儲蓄險", category: "asset", account_type: "保單", balance: 5000 },
+  { id: "demo-finance-4", name: "示範信用卡", purpose: "信用卡消費", category: "liability", account_type: "信用卡未繳", balance: 3000 }
 ];
 
 const financeNameInput = document.getElementById("finance-name-input");
@@ -1904,13 +1912,19 @@ function initFinanceForGuest() {
   renderFinanceAccounts();
 }
 
-// 資產類型建議清單 = 預設清單 + 使用者自己輸入過、目前仍在用的類型（去重）。
-// 每次帳戶資料變動（新增/刪除/編輯/重新載入）都會重建一次，讓自訂類型自動被記住、
-// 之後在任何一個 datalist（新增表單／就地編輯表單共用同一個 <datalist>）都能選到。
-function refreshAccountTypeSuggestions() {
-  if (!financeTypeList) return;
-  const usedTypes = financeAccounts.map(account => account.account_type).filter(Boolean);
-  const suggestions = [...new Set([...ACCOUNT_TYPE_PRESETS, ...usedTypes])];
+// 資產類型／負債類型建議清單 = 該分類的預設清單 + 使用者自己在「同一個分類」下輸入過、
+// 目前仍在用的類型（去重）。依照 DD #001，資產類型跟負債類型是兩套不同語意，
+// 不互相混用建議清單，所以要依照目前選的「資產/負債」分開組合。
+// 每次帳戶資料變動（新增/刪除/編輯/重新載入），或使用者切換「資產/負債」下拉選單時，都會重建一次。
+function refreshAccountTypeSuggestions(category) {
+  if (!financeTypeList || !financeTypeInput) return;
+
+  const presets = category === "liability" ? LIABILITY_TYPE_PRESETS : ASSET_TYPE_PRESETS;
+  const usedTypes = financeAccounts
+    .filter(account => account.category === category)
+    .map(account => account.account_type)
+    .filter(Boolean);
+  const suggestions = [...new Set([...presets, ...usedTypes])];
 
   financeTypeList.innerHTML = "";
   suggestions.forEach(function (type) {
@@ -1918,7 +1932,15 @@ function refreshAccountTypeSuggestions() {
     option.value = type;
     financeTypeList.appendChild(option);
   });
+
+  financeTypeInput.placeholder = category === "liability"
+    ? "負債類型（可輸入新類型）"
+    : "資產類型（可輸入新類型）";
 }
+
+financeCategorySelect.addEventListener("change", function () {
+  refreshAccountTypeSuggestions(financeCategorySelect.value);
+});
 
 async function addFinanceAccount() {
   const name = financeNameInput.value.trim();
@@ -2061,6 +2083,13 @@ function buildFinanceAccountEditForm(account, onCancel) {
   typeInput.setAttribute("list", "finance-type-list");
   typeInput.value = account.account_type || "";
 
+  // 編輯表單開啟時，先依這個帳戶目前的分類（資產/負債）重建共用建議清單，
+  // 之後在表單內切換分類，也同步重建，維持跟新增表單一致的行為。
+  refreshAccountTypeSuggestions(account.category);
+  categorySelect.addEventListener("change", function () {
+    refreshAccountTypeSuggestions(categorySelect.value);
+  });
+
   const balanceInput = document.createElement("input");
   balanceInput.type = "number";
   balanceInput.value = account.balance;
@@ -2105,7 +2134,10 @@ function buildFinanceAccountEditForm(account, onCancel) {
 
   const cancelButton = document.createElement("button");
   cancelButton.textContent = "取消";
-  cancelButton.addEventListener("click", onCancel);
+  cancelButton.addEventListener("click", function () {
+    refreshAccountTypeSuggestions(financeCategorySelect.value);
+    onCancel();
+  });
 
   [nameInput, purposeInput].forEach(function (input) {
     input.addEventListener("keydown", function (event) {
@@ -2170,7 +2202,7 @@ function buildFinanceAccountItem(account) {
 }
 
 function renderFinanceAccounts() {
-  refreshAccountTypeSuggestions();
+  refreshAccountTypeSuggestions(financeCategorySelect.value);
 
   const assets = financeAccounts.filter(account => account.category === "asset");
   const liabilities = financeAccounts.filter(account => account.category === "liability");
