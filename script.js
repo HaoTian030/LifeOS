@@ -1902,8 +1902,6 @@ const financeTxAmountInput = document.getElementById("finance-tx-amount-input");
 const financeTxDateInput = document.getElementById("finance-tx-date-input");
 const financeTxCategoryInput = document.getElementById("finance-tx-category-input");
 const financeTxAddButton = document.getElementById("finance-tx-add-button");
-const financeTxList = document.getElementById("finance-tx-list");
-const financeTxEmpty = document.getElementById("finance-tx-empty");
 
 // 類型切換（支出/收入/轉帳）：切換單一帳戶欄位跟轉帳來源/目標欄位的顯示。
 financeTxTypeButtons.forEach(function (button) {
@@ -1997,7 +1995,6 @@ async function initFinanceForUser() {
   await loadFinanceTransactionsFromSupabase();
   setFinanceTxDateToday();
   renderFinanceAccounts();
-  renderFinanceTransactions();
 }
 
 function initFinanceForGuest() {
@@ -2005,7 +2002,6 @@ function initFinanceForGuest() {
   financeTransactions = DEMO_FINANCE_TRANSACTIONS.map(item => ({ ...item }));
   setFinanceTxDateToday();
   renderFinanceAccounts();
-  renderFinanceTransactions();
 }
 
 // 資產類型／負債類型建議清單 = 該分類的預設清單 + 使用者自己在「同一個分類」下輸入過、
@@ -2157,7 +2153,7 @@ async function addFinanceTransaction() {
   financeTxCategoryInput.value = "";
   setFinanceTxDateToday();
   renderFinanceAccounts();
-  renderFinanceTransactions();
+  refreshFinanceTxDetailModal();
 }
 
 async function deleteFinanceTransaction(id) {
@@ -2179,7 +2175,7 @@ async function deleteFinanceTransaction(id) {
 
   financeTransactions = financeTransactions.filter(t => t.id !== id);
   renderFinanceAccounts();
-  renderFinanceTransactions();
+  refreshFinanceTxDetailModal();
 }
 
 function getFinanceAccountName(id) {
@@ -2227,23 +2223,100 @@ function buildFinanceTransactionItem(tx) {
   return item;
 }
 
-function renderFinanceTransactions() {
-  refreshFinanceTxAccountOptions();
-
-  financeTxList.innerHTML = "";
-  financeTransactions.forEach(function (tx) {
-    financeTxList.appendChild(buildFinanceTransactionItem(tx));
-  });
-  financeTxEmpty.style.display = financeTransactions.length > 0 ? "none" : "block";
+// ---- 記帳明細（獨立彈窗，含月份/類別篩選） ----
+// 決策（本輪交接）：快速記帳彈窗只留表單，明細是另一個獨立彈窗，
+// 因為記帳要求「快」，明細是復盤才會查看，兩者混在一起會顯得雜亂。
+function getFinanceTxMonthKey(dateStr) {
+  return dateStr ? dateStr.slice(0, 7) : "";
 }
+
+function formatFinanceTxMonthLabel(monthKey) {
+  const parts = monthKey.split("-");
+  return `${parts[0]}年${Number(parts[1])}月`;
+}
+
+const financeTxFilterMonth = document.getElementById("finance-tx-filter-month");
+const financeTxFilterCategory = document.getElementById("finance-tx-filter-category");
+const financeTxDetailList = document.getElementById("finance-tx-detail-list");
+const financeTxDetailEmpty = document.getElementById("finance-tx-detail-empty");
+
+function refreshFinanceTxFilterOptions() {
+  const months = [...new Set(financeTransactions.map(tx => getFinanceTxMonthKey(tx.occurred_on)).filter(Boolean))]
+    .sort(function (a, b) { return b.localeCompare(a); });
+  const categories = [...new Set(financeTransactions.map(tx => tx.category).filter(Boolean))];
+
+  const previousMonth = financeTxFilterMonth.value;
+  financeTxFilterMonth.innerHTML = "";
+  const allMonthOption = document.createElement("option");
+  allMonthOption.value = "all";
+  allMonthOption.textContent = "全部月份";
+  financeTxFilterMonth.appendChild(allMonthOption);
+  months.forEach(function (monthKey) {
+    const option = document.createElement("option");
+    option.value = monthKey;
+    option.textContent = formatFinanceTxMonthLabel(monthKey);
+    financeTxFilterMonth.appendChild(option);
+  });
+  financeTxFilterMonth.value = (previousMonth && months.includes(previousMonth)) ? previousMonth : "all";
+
+  const previousCategory = financeTxFilterCategory.value;
+  financeTxFilterCategory.innerHTML = "";
+  const allCategoryOption = document.createElement("option");
+  allCategoryOption.value = "all";
+  allCategoryOption.textContent = "全部類別";
+  financeTxFilterCategory.appendChild(allCategoryOption);
+  categories.forEach(function (category) {
+    const option = document.createElement("option");
+    option.value = category;
+    option.textContent = category;
+    financeTxFilterCategory.appendChild(option);
+  });
+  financeTxFilterCategory.value = (previousCategory && categories.includes(previousCategory)) ? previousCategory : "all";
+}
+
+function renderFinanceTransactionDetailList() {
+  const monthFilter = financeTxFilterMonth.value || "all";
+  const categoryFilter = financeTxFilterCategory.value || "all";
+
+  const filtered = financeTransactions.filter(function (tx) {
+    const monthMatch = monthFilter === "all" || getFinanceTxMonthKey(tx.occurred_on) === monthFilter;
+    const categoryMatch = categoryFilter === "all" || tx.category === categoryFilter;
+    return monthMatch && categoryMatch;
+  });
+
+  financeTxDetailList.innerHTML = "";
+  let lastMonthKey = null;
+  filtered.forEach(function (tx) {
+    const monthKey = getFinanceTxMonthKey(tx.occurred_on);
+    if (monthFilter === "all" && monthKey !== lastMonthKey) {
+      const header = document.createElement("div");
+      header.className = "finance-tx-month-group-header";
+      header.textContent = formatFinanceTxMonthLabel(monthKey);
+      financeTxDetailList.appendChild(header);
+      lastMonthKey = monthKey;
+    }
+    financeTxDetailList.appendChild(buildFinanceTransactionItem(tx));
+  });
+
+  financeTxDetailEmpty.style.display = filtered.length > 0 ? "none" : "block";
+}
+
+function refreshFinanceTxDetailModal() {
+  refreshFinanceTxFilterOptions();
+  renderFinanceTransactionDetailList();
+}
+
+financeTxFilterMonth.addEventListener("change", renderFinanceTransactionDetailList);
+financeTxFilterCategory.addEventListener("change", renderFinanceTransactionDetailList);
 
 financeTxAddButton.addEventListener("click", addFinanceTransaction);
 
-const financeTxOpenModalButton = document.getElementById("finance-tx-open-modal-button");
+// 懸浮按鈕：只開快速記帳表單（不含明細），符合「記帳要快」的訴求。
+const financeTxFab = document.getElementById("finance-tx-fab");
 const financeTxModalOverlay = document.getElementById("finance-tx-modal-overlay");
 const financeTxModalClose = document.getElementById("finance-tx-modal-close");
 
-financeTxOpenModalButton.addEventListener("click", function () {
+financeTxFab.addEventListener("click", function () {
   financeTxModalOverlay.style.display = "flex";
 });
 
@@ -2257,6 +2330,37 @@ financeTxModalOverlay.addEventListener("click", function (event) {
   if (event.target === financeTxModalOverlay) {
     closeFinanceTxModal();
   }
+});
+
+// 「查看記帳明細」：獨立彈窗，開啟時才重建篩選清單跟列表（復盤情境，不用即時同步）。
+const financeTxDetailOpenButton = document.getElementById("finance-tx-detail-open-button");
+const financeTxDetailModalOverlay = document.getElementById("finance-tx-detail-modal-overlay");
+const financeTxDetailModalClose = document.getElementById("finance-tx-detail-modal-close");
+
+financeTxDetailOpenButton.addEventListener("click", function () {
+  refreshFinanceTxDetailModal();
+  financeTxDetailModalOverlay.style.display = "flex";
+});
+
+function closeFinanceTxDetailModal() {
+  financeTxDetailModalOverlay.style.display = "none";
+}
+
+financeTxDetailModalClose.addEventListener("click", closeFinanceTxDetailModal);
+
+financeTxDetailModalOverlay.addEventListener("click", function (event) {
+  if (event.target === financeTxDetailModalOverlay) {
+    closeFinanceTxDetailModal();
+  }
+});
+
+// 新增帳戶表單預設收合（建好之後很少會再用到），點按鈕才展開/收回。
+const financeAddAccountToggle = document.getElementById("finance-add-account-toggle");
+const financeAddAccountSection = document.getElementById("finance-add-account-section");
+
+financeAddAccountToggle.addEventListener("click", function () {
+  const isHidden = financeAddAccountSection.style.display === "none";
+  financeAddAccountSection.style.display = isHidden ? "" : "none";
 });
 
 async function addFinanceAccount() {

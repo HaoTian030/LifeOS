@@ -741,6 +741,59 @@ h1{
     max-height: 40vh;
 }
 
+/* ============ 財務：資產總覽版面調整 ============ */
+.finance-detail-link {
+    display: inline-block;
+    background: none;
+    border: none;
+    color: #93c5fd;
+    cursor: pointer;
+    padding: 6px 0 14px;
+    font-size: 14px;
+}
+
+.finance-add-account-toggle-row {
+    margin-bottom: 10px;
+}
+
+/* ============ 財務：懸浮記帳按鈕 ============ */
+.finance-fab {
+    position: fixed;
+    right: 28px;
+    bottom: 28px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    background: #22c55e;
+    color: #052e12;
+    font-size: 22px;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+    z-index: 900;
+}
+
+/* ============ 財務：記帳明細篩選 ============ */
+.finance-tx-detail-filters {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.finance-tx-detail-filters select {
+    padding: 8px;
+    border-radius: 8px;
+    border: none;
+    flex: 1;
+}
+
+.finance-tx-month-group-header {
+    color: #9ca3af;
+    font-size: 13px;
+    margin: 14px 0 6px;
+    font-weight: 600;
+}
+
 .card{
     background:#1f2937;
     padding:20px;

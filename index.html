@@ -167,7 +167,13 @@
                 <p id="finance-net-worth">淨資產：$0</p>
             </div>
 
-            <div class="finance-input-row">
+            <button id="finance-tx-detail-open-button" type="button" class="finance-detail-link">📜 查看記帳明細</button>
+
+            <div class="finance-add-account-toggle-row">
+                <button id="finance-add-account-toggle" type="button" class="history-button">➕ 新增帳戶</button>
+            </div>
+
+            <div class="finance-input-row" id="finance-add-account-section" style="display:none;">
                 <input id="finance-name-input" type="text" placeholder="帳戶名稱（例如：土地銀行）">
                 <input id="finance-purpose-input" type="text" placeholder="用途（例如：負責日常生活開銷）">
                 <select id="finance-category-select">
@@ -189,11 +195,7 @@
             <div id="finance-liabilities-list"></div>
         </div>
 
-        <div class="card" id="finance-transactions-card" data-tab="finance" style="display:none;">
-            <h2>🧾 記帳</h2>
-            <p class="empty-state">點下面的按鈕，新增一筆收入、支出或轉帳紀錄。</p>
-            <button id="finance-tx-open-modal-button" type="button" class="history-button">🧾 記一筆</button>
-        </div>
+        <button id="finance-tx-fab" type="button" class="finance-fab" data-tab="finance" style="display:none;" title="記一筆" aria-label="記一筆">🧾</button>
 
         <div class="card" id="notion-card" data-tab="notion" style="display:none;">
             <h2>📝 Notion 筆記</h2>
@@ -236,7 +238,7 @@
     <div id="finance-tx-modal-overlay" class="modal-overlay" style="display:none;">
         <div class="modal-box">
             <div class="modal-header">
-                <h2>🧾 記帳</h2>
+                <h2>🧾 記一筆</h2>
                 <button id="finance-tx-modal-close" type="button">✕</button>
             </div>
 
@@ -262,10 +264,23 @@
                 <input id="finance-tx-category-input" type="text" placeholder="用途備註（自由輸入）">
                 <button id="finance-tx-add-button" type="button">新增紀錄</button>
             </div>
+        </div>
+    </div>
 
-            <h3 class="finance-section-title">最近紀錄</h3>
-            <p id="finance-tx-empty" class="empty-state">還沒有任何交易紀錄，用上面的表單開始記帳吧。</p>
-            <div id="finance-tx-list" class="finance-tx-modal-list"></div>
+    <div id="finance-tx-detail-modal-overlay" class="modal-overlay" style="display:none;">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h2>📜 記帳明細</h2>
+                <button id="finance-tx-detail-modal-close" type="button">✕</button>
+            </div>
+
+            <div class="finance-tx-detail-filters">
+                <select id="finance-tx-filter-month"></select>
+                <select id="finance-tx-filter-category"></select>
+            </div>
+
+            <p id="finance-tx-detail-empty" class="empty-state">目前沒有符合條件的紀錄。</p>
+            <div id="finance-tx-detail-list" class="finance-tx-modal-list"></div>
         </div>
     </div>
 
