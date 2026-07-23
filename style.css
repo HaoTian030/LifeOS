@@ -373,6 +373,11 @@ h1{
         padding-bottom: 30px;
     }
 
+    .finance-fab {
+        bottom: 28px;
+        right: 28px;
+    }
+
     .auth-bar {
         position: fixed;
         top: 16px;
@@ -759,8 +764,9 @@ h1{
 /* ============ 財務：懸浮記帳按鈕 ============ */
 .finance-fab {
     position: fixed;
-    right: 28px;
-    bottom: 28px;
+    right: 20px;
+    /* 手機版底部導覽列是橫條固定在畫面最下方，懸浮按鈕要浮在它上面，避免被擋住/擋到導覽列。 */
+    bottom: calc(78px + env(safe-area-inset-bottom, 0px));
     width: 56px;
     height: 56px;
     border-radius: 50%;
@@ -770,7 +776,7 @@ h1{
     font-size: 22px;
     cursor: pointer;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
-    z-index: 900;
+    z-index: 950;
 }
 
 /* ============ 財務：記帳明細篩選 ============ */

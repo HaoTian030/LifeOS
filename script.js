@@ -1887,9 +1887,9 @@ let financeTransactions = [];
 let selectedTxType = "expense";
 
 const DEMO_FINANCE_TRANSACTIONS = [
-  { id: "demo-tx-1", type: "income", account_id: "demo-finance-1", from_account_id: null, to_account_id: null, amount: 52000, category: "薪資", occurred_on: new Date().toISOString().split("T")[0] },
-  { id: "demo-tx-2", type: "expense", account_id: "demo-finance-1", from_account_id: null, to_account_id: null, amount: 3000, category: "日本旅費預留", occurred_on: new Date().toISOString().split("T")[0] },
-  { id: "demo-tx-3", type: "transfer", account_id: null, from_account_id: "demo-finance-1", to_account_id: "demo-finance-4", amount: 8200, category: "信用卡結算", occurred_on: new Date().toISOString().split("T")[0] }
+  { id: "demo-tx-1", type: "income", account_id: "demo-finance-1", from_account_id: null, to_account_id: null, amount: 52000, category: "薪資", tag: "收入", occurred_on: new Date().toISOString().split("T")[0] },
+  { id: "demo-tx-2", type: "expense", account_id: "demo-finance-1", from_account_id: null, to_account_id: null, amount: 3000, category: "日本旅費預留", tag: "旅遊", occurred_on: new Date().toISOString().split("T")[0] },
+  { id: "demo-tx-3", type: "transfer", account_id: null, from_account_id: "demo-finance-1", to_account_id: "demo-finance-4", amount: 8200, category: "信用卡結算", tag: "信用卡", occurred_on: new Date().toISOString().split("T")[0] }
 ];
 
 const financeTxTypeButtons = document.querySelectorAll("#finance-tx-type-toggle .finance-tx-type-button");
@@ -1901,9 +1901,60 @@ const financeTxToSelect = document.getElementById("finance-tx-to-select");
 const financeTxAmountInput = document.getElementById("finance-tx-amount-input");
 const financeTxDateInput = document.getElementById("finance-tx-date-input");
 const financeTxCategoryInput = document.getElementById("finance-tx-category-input");
+const financeTxTagInput = document.getElementById("finance-tx-tag-input");
+const financeTxTagList = document.getElementById("finance-tx-tag-list");
 const financeTxAddButton = document.getElementById("finance-tx-add-button");
 
-// 類型切換（支出/收入/轉帳）：切換單一帳戶欄位跟轉帳來源/目標欄位的顯示。
+// 分類標籤建議清單 = 使用者用過的所有標籤（去重），沒有預設清單，純粹從實際使用中累積，
+// 跟資產類型的 datalist 是同一套設計邏輯。
+function refreshFinanceTxTagSuggestions() {
+  if (!financeTxTagList) return;
+  const usedTags = [...new Set(financeTransactions.map(tx => tx.tag).filter(Boolean))];
+  financeTxTagList.innerHTML = "";
+  usedTags.forEach(function (tag) {
+    const option = document.createElement("option");
+    option.value = tag;
+    financeTxTagList.appendChild(option);
+  });
+}
+
+// 記帳帳戶預設值：記住使用者「支出」「收入」「轉帳來源」「轉帳目標」各自最後一次選了哪個帳戶，
+// 下次開記帳視窗自動預選，不用每次手動找（例如支出幾乎都用現金）。純前端記憶，不動資料庫。
+function getPreferredAccountStorageKey(role) {
+  return `lifeos_finance_tx_preferred_account_${role}`;
+}
+
+function applyPreferredAccountDefault(selectEl, role) {
+  if (!selectEl) return;
+  try {
+    const stored = localStorage.getItem(getPreferredAccountStorageKey(role));
+    if (stored && Array.from(selectEl.options).some(function (o) { return o.value === stored; })) {
+      selectEl.value = stored;
+    }
+  } catch (e) {
+    // 讀不到 localStorage（例如隱私模式）就略過，退回原本行為。
+  }
+}
+
+function savePreferredAccountDefault(role, accountId) {
+  try {
+    localStorage.setItem(getPreferredAccountStorageKey(role), accountId);
+  } catch (e) {
+    // 存不進去就算了，不影響記帳本身。
+  }
+}
+
+function applyPreferredDefaultsForCurrentType() {
+  if (selectedTxType === "transfer") {
+    applyPreferredAccountDefault(financeTxFromSelect, "transfer_from");
+    applyPreferredAccountDefault(financeTxToSelect, "transfer_to");
+  } else {
+    applyPreferredAccountDefault(financeTxAccountSelect, selectedTxType);
+  }
+}
+
+// 類型切換（支出/收入/轉帳）：切換單一帳戶欄位跟轉帳來源/目標欄位的顯示，
+// 並套用這個類型上次記住的預設帳戶。
 financeTxTypeButtons.forEach(function (button) {
   button.addEventListener("click", function () {
     selectedTxType = button.dataset.txType;
@@ -1913,6 +1964,7 @@ financeTxTypeButtons.forEach(function (button) {
     const isTransfer = selectedTxType === "transfer";
     financeTxSingleAccountField.style.display = isTransfer ? "none" : "";
     financeTxTransferFields.style.display = isTransfer ? "flex" : "none";
+    applyPreferredDefaultsForCurrentType();
   });
 });
 
@@ -1986,6 +2038,7 @@ async function loadFinanceTransactionsFromSupabase() {
     to_account_id: row.to_account_id,
     amount: Number(row.amount),
     category: row.category,
+    tag: row.tag,
     occurred_on: row.occurred_on
   }));
 }
@@ -1995,6 +2048,7 @@ async function initFinanceForUser() {
   await loadFinanceTransactionsFromSupabase();
   setFinanceTxDateToday();
   renderFinanceAccounts();
+  refreshFinanceTxTagSuggestions();
 }
 
 function initFinanceForGuest() {
@@ -2002,6 +2056,7 @@ function initFinanceForGuest() {
   financeTransactions = DEMO_FINANCE_TRANSACTIONS.map(item => ({ ...item }));
   setFinanceTxDateToday();
   renderFinanceAccounts();
+  refreshFinanceTxTagSuggestions();
 }
 
 // 資產類型／負債類型建議清單 = 該分類的預設清單 + 使用者自己在「同一個分類」下輸入過、
@@ -2075,6 +2130,7 @@ async function addFinanceTransaction() {
   const amountRaw = financeTxAmountInput.value.trim();
   const occurredOn = financeTxDateInput.value || new Date().toISOString().split("T")[0];
   const category = financeTxCategoryInput.value.trim();
+  const tag = financeTxTagInput.value.trim();
 
   if (amountRaw === "" || isNaN(Number(amountRaw)) || Number(amountRaw) <= 0) {
     alert("請輸入大於 0 的金額。");
@@ -2118,6 +2174,7 @@ async function addFinanceTransaction() {
         to_account_id: toAccountId,
         amount,
         category,
+        tag,
         occurred_on: occurredOn
       })
       .select()
@@ -2137,22 +2194,33 @@ async function addFinanceTransaction() {
       to_account_id: data.to_account_id,
       amount: Number(data.amount),
       category: data.category,
+      tag: data.tag,
       occurred_on: data.occurred_on
     });
   } else {
     financeTransactions.unshift({
       id: `demo-tx-${Date.now()}`,
       type, account_id: accountId, from_account_id: fromAccountId, to_account_id: toAccountId,
-      amount, category, occurred_on: occurredOn
+      amount, category, tag, occurred_on: occurredOn
     });
+  }
+
+  // 記住這次選用的帳戶，下次同類型記帳時自動預選（見本輪交接：帳戶預設值）。
+  if (type === "transfer") {
+    savePreferredAccountDefault("transfer_from", fromAccountId);
+    savePreferredAccountDefault("transfer_to", toAccountId);
+  } else {
+    savePreferredAccountDefault(type, accountId);
   }
 
   await applyTransactionBalanceChange(type, accountId, fromAccountId, toAccountId, amount, 1);
 
   financeTxAmountInput.value = "";
   financeTxCategoryInput.value = "";
+  financeTxTagInput.value = "";
   setFinanceTxDateToday();
   renderFinanceAccounts();
+  refreshFinanceTxTagSuggestions();
   refreshFinanceTxDetailModal();
 }
 
@@ -2175,6 +2243,7 @@ async function deleteFinanceTransaction(id) {
 
   financeTransactions = financeTransactions.filter(t => t.id !== id);
   renderFinanceAccounts();
+  refreshFinanceTxTagSuggestions();
   refreshFinanceTxDetailModal();
 }
 
@@ -2198,9 +2267,12 @@ function buildFinanceTransactionItem(tx) {
 
   const meta = document.createElement("div");
   meta.className = "finance-item-meta";
-  meta.textContent = tx.type === "transfer"
-    ? `${getFinanceAccountName(tx.from_account_id)} → ${getFinanceAccountName(tx.to_account_id)} · ${tx.occurred_on}`
-    : `${getFinanceAccountName(tx.account_id)} · ${tx.occurred_on}`;
+  const accountPart = tx.type === "transfer"
+    ? `${getFinanceAccountName(tx.from_account_id)} → ${getFinanceAccountName(tx.to_account_id)}`
+    : getFinanceAccountName(tx.account_id);
+  meta.textContent = tx.tag
+    ? `${accountPart} · ${tx.occurred_on} · #${tx.tag}`
+    : `${accountPart} · ${tx.occurred_on}`;
 
   info.appendChild(title);
   info.appendChild(meta);
@@ -2223,9 +2295,11 @@ function buildFinanceTransactionItem(tx) {
   return item;
 }
 
-// ---- 記帳明細（獨立彈窗，含月份/類別篩選） ----
+// ---- 記帳明細（獨立彈窗，含月份/標籤篩選） ----
 // 決策（本輪交接）：快速記帳彈窗只留表單，明細是另一個獨立彈窗，
 // 因為記帳要求「快」，明細是復盤才會查看，兩者混在一起會顯得雜亂。
+// 篩選改用「分類標籤」而不是「用途備註」——備註是自由描述細節，天生不重複，
+// 拿來篩選沒有意義；標籤才是負責分組的欄位（見本輪交接：DD-001 Purpose vs Tags）。
 function getFinanceTxMonthKey(dateStr) {
   return dateStr ? dateStr.slice(0, 7) : "";
 }
@@ -2236,14 +2310,14 @@ function formatFinanceTxMonthLabel(monthKey) {
 }
 
 const financeTxFilterMonth = document.getElementById("finance-tx-filter-month");
-const financeTxFilterCategory = document.getElementById("finance-tx-filter-category");
+const financeTxFilterTag = document.getElementById("finance-tx-filter-tag");
 const financeTxDetailList = document.getElementById("finance-tx-detail-list");
 const financeTxDetailEmpty = document.getElementById("finance-tx-detail-empty");
 
 function refreshFinanceTxFilterOptions() {
   const months = [...new Set(financeTransactions.map(tx => getFinanceTxMonthKey(tx.occurred_on)).filter(Boolean))]
     .sort(function (a, b) { return b.localeCompare(a); });
-  const categories = [...new Set(financeTransactions.map(tx => tx.category).filter(Boolean))];
+  const tags = [...new Set(financeTransactions.map(tx => tx.tag).filter(Boolean))];
 
   const previousMonth = financeTxFilterMonth.value;
   financeTxFilterMonth.innerHTML = "";
@@ -2259,29 +2333,29 @@ function refreshFinanceTxFilterOptions() {
   });
   financeTxFilterMonth.value = (previousMonth && months.includes(previousMonth)) ? previousMonth : "all";
 
-  const previousCategory = financeTxFilterCategory.value;
-  financeTxFilterCategory.innerHTML = "";
-  const allCategoryOption = document.createElement("option");
-  allCategoryOption.value = "all";
-  allCategoryOption.textContent = "全部類別";
-  financeTxFilterCategory.appendChild(allCategoryOption);
-  categories.forEach(function (category) {
+  const previousTag = financeTxFilterTag.value;
+  financeTxFilterTag.innerHTML = "";
+  const allTagOption = document.createElement("option");
+  allTagOption.value = "all";
+  allTagOption.textContent = "全部標籤";
+  financeTxFilterTag.appendChild(allTagOption);
+  tags.forEach(function (tag) {
     const option = document.createElement("option");
-    option.value = category;
-    option.textContent = category;
-    financeTxFilterCategory.appendChild(option);
+    option.value = tag;
+    option.textContent = tag;
+    financeTxFilterTag.appendChild(option);
   });
-  financeTxFilterCategory.value = (previousCategory && categories.includes(previousCategory)) ? previousCategory : "all";
+  financeTxFilterTag.value = (previousTag && tags.includes(previousTag)) ? previousTag : "all";
 }
 
 function renderFinanceTransactionDetailList() {
   const monthFilter = financeTxFilterMonth.value || "all";
-  const categoryFilter = financeTxFilterCategory.value || "all";
+  const tagFilter = financeTxFilterTag.value || "all";
 
   const filtered = financeTransactions.filter(function (tx) {
     const monthMatch = monthFilter === "all" || getFinanceTxMonthKey(tx.occurred_on) === monthFilter;
-    const categoryMatch = categoryFilter === "all" || tx.category === categoryFilter;
-    return monthMatch && categoryMatch;
+    const tagMatch = tagFilter === "all" || tx.tag === tagFilter;
+    return monthMatch && tagMatch;
   });
 
   financeTxDetailList.innerHTML = "";
@@ -2307,7 +2381,7 @@ function refreshFinanceTxDetailModal() {
 }
 
 financeTxFilterMonth.addEventListener("change", renderFinanceTransactionDetailList);
-financeTxFilterCategory.addEventListener("change", renderFinanceTransactionDetailList);
+financeTxFilterTag.addEventListener("change", renderFinanceTransactionDetailList);
 
 financeTxAddButton.addEventListener("click", addFinanceTransaction);
 
@@ -2318,6 +2392,7 @@ const financeTxModalClose = document.getElementById("finance-tx-modal-close");
 
 financeTxFab.addEventListener("click", function () {
   financeTxModalOverlay.style.display = "flex";
+  applyPreferredDefaultsForCurrentType();
 });
 
 function closeFinanceTxModal() {
