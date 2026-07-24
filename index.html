@@ -159,18 +159,18 @@
         </div>
 
         <div class="card" id="finance-overview-card" data-tab="finance" style="display:none;">
-            <h2>💰 資產總覽</h2>
+            <div class="finance-card-header">
+                <h2>💰 資產總覽</h2>
+                <div class="finance-card-header-actions">
+                    <button id="finance-tx-detail-open-button" type="button" class="finance-icon-button" title="查看記帳明細" aria-label="查看記帳明細">📜</button>
+                    <button id="finance-add-account-toggle" type="button" class="finance-icon-button" title="新增帳戶" aria-label="新增帳戶">➕</button>
+                </div>
+            </div>
 
             <div class="finance-summary">
                 <p id="finance-total-assets">總資產：$0</p>
                 <p id="finance-total-liabilities">總負債：$0</p>
                 <p id="finance-net-worth">淨資產：$0</p>
-            </div>
-
-            <button id="finance-tx-detail-open-button" type="button" class="finance-detail-link">📜 查看記帳明細</button>
-
-            <div class="finance-add-account-toggle-row">
-                <button id="finance-add-account-toggle" type="button" class="history-button">➕ 新增帳戶</button>
             </div>
 
             <div class="finance-input-row" id="finance-add-account-section" style="display:none;">

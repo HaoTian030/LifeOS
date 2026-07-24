@@ -758,18 +758,36 @@ h1{
 }
 
 /* ============ 財務：資產總覽版面調整 ============ */
-.finance-detail-link {
-    display: inline-block;
-    background: none;
-    border: none;
-    color: #93c5fd;
-    cursor: pointer;
-    padding: 6px 0 14px;
-    font-size: 14px;
+.finance-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 14px;
 }
 
-.finance-add-account-toggle-row {
-    margin-bottom: 10px;
+.finance-card-header h2 {
+    margin: 0;
+}
+
+.finance-card-header-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.finance-icon-button {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    background: #111827;
+    color: #e5e7eb;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
 }
 
 /* ============ 財務：懸浮記帳按鈕 ============ */
