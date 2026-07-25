@@ -45,22 +45,6 @@ h1{
     .modal-box.auth-modal-box {
         width: 92vw;
     }
-
-    /* 帳戶項目在手機版容易被 4 顆按鈕擠壓，導致名稱/用途文字換行位置很怪。
-       改成：名稱/用途強制獨立一行，金額跟按鈕群組換到下一行，各自有足夠空間。 */
-    .finance-item {
-        flex-wrap: wrap;
-        row-gap: 8px;
-    }
-
-    .finance-item-info {
-        flex: 1 1 100%;
-    }
-
-    .finance-item button {
-        padding: 6px 8px;
-        font-size: 13px;
-    }
 }
 
 @media (min-width: 1024px) {
@@ -1141,4 +1125,29 @@ h1{
 
 #history-modal-content {
     overflow-y: auto;
+}
+
+/* ============ 財務：帳戶項目手機版換行（刻意放在檔案最後面） ============
+   帳戶項目在窄螢幕容易被 4 顆按鈕擠壓，導致名稱/用途文字換行位置很怪，
+   甚至整個欄位被壓縮到只剩一兩個字的寬度（CJK 文字沒有空白可斷詞，
+   欄位一旦被擠壓過窄，瀏覽器就會逐字換行）。
+   這裡刻意放在檔案最後面，是因為前面已經有同選擇器（.finance-item-info 等）
+   優先權相同、沒有加任何條件的基礎規則——CSS 優先權打平時，寫在後面的規則才會生效，
+   放在檔案中段很容易被後面新增的其他樣式意外蓋掉（先前就發生過一次）。
+   放在檔案最後，之後不管中間新增什麼樣式都不會再被蓋掉。 */
+@media (max-width: 480px) {
+    .finance-item {
+        flex-wrap: wrap;
+        row-gap: 8px;
+    }
+
+    .finance-item-info {
+        flex: 1 1 100%;
+        min-width: 100%;
+    }
+
+    .finance-item button {
+        padding: 6px 8px;
+        font-size: 13px;
+    }
 }
