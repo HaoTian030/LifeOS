@@ -1858,10 +1858,10 @@ const ASSET_TYPE_PRESETS = ["現金", "銀行存款", "股票", "ETF", "基金",
 const LIABILITY_TYPE_PRESETS = ["信用卡未繳", "房貸", "車貸", "信貸", "其他"];
 
 const DEMO_FINANCE_ACCOUNTS = [
-  { id: "demo-finance-1", name: "示範銀行", purpose: "負責日常生活開銷", category: "asset", account_type: "銀行存款", balance: 50000 },
-  { id: "demo-finance-2", name: "示範券商", purpose: "股票投資帳戶", category: "asset", account_type: "股票", balance: 30000 },
-  { id: "demo-finance-3", name: "示範保單", purpose: "儲蓄險", category: "asset", account_type: "保單", balance: 5000 },
-  { id: "demo-finance-4", name: "示範信用卡", purpose: "信用卡消費", category: "liability", account_type: "信用卡未繳", balance: 3000 }
+  { id: "demo-finance-1", name: "示範銀行", purpose: "負責日常生活開銷", category: "asset", account_type: "銀行存款", balance: 50000, display_order: 0 },
+  { id: "demo-finance-2", name: "示範券商", purpose: "股票投資帳戶", category: "asset", account_type: "股票", balance: 30000, display_order: 1 },
+  { id: "demo-finance-3", name: "示範保單", purpose: "儲蓄險", category: "asset", account_type: "保單", balance: 5000, display_order: 2 },
+  { id: "demo-finance-4", name: "示範信用卡", purpose: "信用卡消費", category: "liability", account_type: "信用卡未繳", balance: 3000, display_order: 0 }
 ];
 
 const financeNameInput = document.getElementById("finance-name-input");
@@ -2012,7 +2012,8 @@ async function loadFinanceAccountsFromSupabase() {
     purpose: row.purpose,
     category: row.category,
     account_type: row.account_type,
-    balance: Number(row.balance)
+    balance: Number(row.balance),
+    display_order: row.display_order
   }));
 }
 
@@ -2492,7 +2493,8 @@ async function addFinanceAccount() {
       purpose: data.purpose,
       category: data.category,
       account_type: data.account_type,
-      balance: Number(data.balance)
+      balance: Number(data.balance),
+      display_order: data.display_order
     });
   } else {
     financeAccounts.push({
@@ -2501,7 +2503,8 @@ async function addFinanceAccount() {
       purpose,
       category,
       account_type: accountType,
-      balance
+      balance,
+      display_order: financeAccounts.length
     });
   }
 
@@ -2652,7 +2655,7 @@ function buildFinanceAccountEditForm(account, onCancel) {
   return form;
 }
 
-function buildFinanceAccountItem(account) {
+function buildFinanceAccountItem(account, isFirst, isLast) {
   const item = document.createElement("div");
   item.className = "finance-item";
 
@@ -2674,6 +2677,26 @@ function buildFinanceAccountItem(account) {
   balance.className = "finance-item-balance";
   balance.textContent = `$${account.balance.toLocaleString()}`;
 
+  const moveUpButton = document.createElement("button");
+  moveUpButton.textContent = "↑";
+  moveUpButton.title = "往上移";
+  moveUpButton.className = "finance-item-move-button";
+  moveUpButton.setAttribute("aria-label", "往上移");
+  moveUpButton.disabled = isFirst;
+  moveUpButton.addEventListener("click", function () {
+    moveFinanceAccount(account, -1);
+  });
+
+  const moveDownButton = document.createElement("button");
+  moveDownButton.textContent = "↓";
+  moveDownButton.title = "往下移";
+  moveDownButton.className = "finance-item-move-button";
+  moveDownButton.setAttribute("aria-label", "往下移");
+  moveDownButton.disabled = isLast;
+  moveDownButton.addEventListener("click", function () {
+    moveFinanceAccount(account, 1);
+  });
+
   const editButton = document.createElement("button");
   editButton.textContent = "編輯";
   editButton.addEventListener("click", function () {
@@ -2691,28 +2714,75 @@ function buildFinanceAccountItem(account) {
 
   item.appendChild(info);
   item.appendChild(balance);
+  item.appendChild(moveUpButton);
+  item.appendChild(moveDownButton);
   item.appendChild(editButton);
   item.appendChild(deleteButton);
 
   return item;
 }
 
+// 帳戶排序：在同一個分類（資產／負債各自）內，跟相鄰帳戶交換 display_order，
+// 不用刪除重建就能調整記帳表單下拉選單、總覽列表的顯示順序。
+async function moveFinanceAccount(account, direction) {
+  const sameCategory = financeAccounts
+    .filter(a => a.category === account.category)
+    .sort((a, b) => a.display_order - b.display_order);
+
+  const index = sameCategory.findIndex(a => a.id === account.id);
+  const targetIndex = index + direction;
+  if (targetIndex < 0 || targetIndex >= sameCategory.length) return;
+
+  const current = sameCategory[index];
+  const target = sameCategory[targetIndex];
+  const currentOrder = current.display_order;
+  const targetOrder = target.display_order;
+
+  current.display_order = targetOrder;
+  target.display_order = currentOrder;
+
+  if (currentUser) {
+    const { error: error1 } = await supabaseClient
+      .from("finance_accounts")
+      .update({ display_order: current.display_order })
+      .eq("id", current.id);
+    const { error: error2 } = await supabaseClient
+      .from("finance_accounts")
+      .update({ display_order: target.display_order })
+      .eq("id", target.id);
+
+    if (error1 || error2) {
+      console.log("更新排序失敗", error1, error2);
+      alert("排序更新失敗，請稍後再試一次。");
+      current.display_order = currentOrder;
+      target.display_order = targetOrder;
+      return;
+    }
+  }
+
+  renderFinanceAccounts();
+}
+
 function renderFinanceAccounts() {
   refreshAccountTypeSuggestions(financeCategorySelect.value);
   refreshFinanceTxAccountOptions();
 
-  const assets = financeAccounts.filter(account => account.category === "asset");
-  const liabilities = financeAccounts.filter(account => account.category === "liability");
+  const assets = financeAccounts
+    .filter(account => account.category === "asset")
+    .sort((a, b) => a.display_order - b.display_order);
+  const liabilities = financeAccounts
+    .filter(account => account.category === "liability")
+    .sort((a, b) => a.display_order - b.display_order);
 
   financeAssetsList.innerHTML = "";
-  assets.forEach(function (account) {
-    financeAssetsList.appendChild(buildFinanceAccountItem(account));
+  assets.forEach(function (account, index) {
+    financeAssetsList.appendChild(buildFinanceAccountItem(account, index === 0, index === assets.length - 1));
   });
   financeAssetsEmpty.style.display = assets.length > 0 ? "none" : "block";
 
   financeLiabilitiesList.innerHTML = "";
-  liabilities.forEach(function (account) {
-    financeLiabilitiesList.appendChild(buildFinanceAccountItem(account));
+  liabilities.forEach(function (account, index) {
+    financeLiabilitiesList.appendChild(buildFinanceAccountItem(account, index === 0, index === liabilities.length - 1));
   });
   financeLiabilitiesEmpty.style.display = liabilities.length > 0 ? "none" : "block";
 

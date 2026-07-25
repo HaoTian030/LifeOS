@@ -658,6 +658,16 @@ h1{
     color: #f3f4f6;
 }
 
+.finance-item button:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.finance-item-move-button {
+    padding: 6px 8px !important;
+    min-width: 30px;
+}
+
 .finance-item-editing {
     flex-wrap: wrap;
 }
