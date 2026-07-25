@@ -2764,15 +2764,16 @@ async function moveFinanceAccount(account, direction) {
 }
 
 function renderFinanceAccounts() {
+  // 排序要回寫到主資料陣列本身（financeAccounts），不能只在這個函式裡臨時排序，
+  // 不然記帳表單的帳戶下拉選單（refreshFinanceTxAccountOptions 直接讀 financeAccounts）
+  // 會跟畫面上的順序對不起來——這是本輪回報的 bug，這裡是唯一的資料來源，統一在這裡排好。
+  financeAccounts.sort((a, b) => a.display_order - b.display_order);
+
   refreshAccountTypeSuggestions(financeCategorySelect.value);
   refreshFinanceTxAccountOptions();
 
-  const assets = financeAccounts
-    .filter(account => account.category === "asset")
-    .sort((a, b) => a.display_order - b.display_order);
-  const liabilities = financeAccounts
-    .filter(account => account.category === "liability")
-    .sort((a, b) => a.display_order - b.display_order);
+  const assets = financeAccounts.filter(account => account.category === "asset");
+  const liabilities = financeAccounts.filter(account => account.category === "liability");
 
   financeAssetsList.innerHTML = "";
   assets.forEach(function (account, index) {
