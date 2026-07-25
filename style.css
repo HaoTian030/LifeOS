@@ -45,6 +45,22 @@ h1{
     .modal-box.auth-modal-box {
         width: 92vw;
     }
+
+    /* 帳戶項目在手機版容易被 4 顆按鈕擠壓，導致名稱/用途文字換行位置很怪。
+       改成：名稱/用途強制獨立一行，金額跟按鈕群組換到下一行，各自有足夠空間。 */
+    .finance-item {
+        flex-wrap: wrap;
+        row-gap: 8px;
+    }
+
+    .finance-item-info {
+        flex: 1 1 100%;
+    }
+
+    .finance-item button {
+        padding: 6px 8px;
+        font-size: 13px;
+    }
 }
 
 @media (min-width: 1024px) {

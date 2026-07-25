@@ -2458,13 +2458,13 @@ async function addFinanceAccount() {
     return;
   }
 
-  if (balanceRaw === "" || isNaN(Number(balanceRaw))) {
-    alert("請輸入金額（可以是 0，但不能留空）。");
+  if (balanceRaw !== "" && isNaN(Number(balanceRaw))) {
+    alert("金額請輸入數字。");
     financeBalanceInput.focus();
     return;
   }
 
-  const balance = Number(balanceRaw);
+  const balance = balanceRaw === "" ? 0 : Number(balanceRaw);
 
   if (currentUser) {
     const { data, error } = await supabaseClient
@@ -2512,6 +2512,7 @@ async function addFinanceAccount() {
   financePurposeInput.value = "";
   financeTypeInput.value = "";
   financeBalanceInput.value = "";
+  financeAddAccountSection.style.display = "none";
   renderFinanceAccounts();
 }
 
@@ -2613,8 +2614,8 @@ function buildFinanceAccountEditForm(account, onCancel) {
       return;
     }
 
-    if (balanceRaw === "" || isNaN(Number(balanceRaw))) {
-      alert("請輸入金額（可以是 0，但不能留空）。");
+    if (balanceRaw !== "" && isNaN(Number(balanceRaw))) {
+      alert("金額請輸入數字。");
       balanceInput.focus();
       return;
     }
@@ -2624,7 +2625,7 @@ function buildFinanceAccountEditForm(account, onCancel) {
       purpose: purposeInput.value.trim(),
       category: categorySelect.value,
       account_type: trimmedType,
-      balance: Number(balanceRaw)
+      balance: balanceRaw === "" ? 0 : Number(balanceRaw)
     };
     saveFinanceAccountEdits(account.id, updates).then(function (ok) {
       if (ok) renderFinanceAccounts();
