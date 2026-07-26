@@ -2738,55 +2738,136 @@ function buildFinanceAccountItem(account, manageMode) {
   return item;
 }
 
-// 拖曳排序：改成「放開時一次判定最終位置」，不是拖曳過程中即時交換。
-// 拖曳中，項目本身只是用 transform 跟著手指/滑鼠垂直飄動，其他項目完全不動；
-// 放開的瞬間，用當下的最終位置去跟所有項目的中線比一次，直接決定該插進哪個位置。
-// 這樣不管拖多遠、拖多快、中途改變方向都沒問題，因為只判斷一次，不會有中間狀態累積出錯的空間
-// （先前「拖曳中即時交換」的寫法在快速/來回拖曳時容易卡住、只能一格一格動，就是這個原因）。
+// 拖曳排序：
+// 1. 支援上下左右（因為桌面版是多欄 Grid，只判斷上下不夠，要用「離哪個項目最近」來判斷）
+// 2. 拖曳中即時標示「放開後會插進哪裡」，不是放開才知道結果
+// 3. 拖到螢幕邊緣時自動捲動（解決手機版拖到最下面卡住、超出範圍看不到的問題）
+//
+// 核心判斷邏輯（pickInsertionTarget）：算出離目前拖曳點最近的項目，
+// 如果跟那個項目大致同一列（垂直距離小於半個項目高度），比左右；
+// 不同列就比上下。這樣不管是單欄（手機直排）還是多欄（桌面 Grid）都適用。
+function pickFinanceAccountInsertionTarget(container, item, pointX, pointY) {
+  const siblings = Array.from(container.children).filter(function (el) { return el !== item; });
+  if (siblings.length === 0) return null;
+
+  let closest = null;
+  let closestDist = Infinity;
+
+  siblings.forEach(function (sibling) {
+    const rect = sibling.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dist = Math.hypot(pointX - cx, pointY - cy);
+    if (dist < closestDist) {
+      closestDist = dist;
+      closest = { el: sibling, rect, cx, cy };
+    }
+  });
+
+  if (!closest) return null;
+
+  const rowTolerance = closest.rect.height / 2;
+  const sameRow = Math.abs(pointY - closest.cy) < rowTolerance;
+  const insertBefore = sameRow ? (pointX < closest.cx) : (pointY < closest.cy);
+
+  return insertBefore ? closest.el : closest.el.nextSibling;
+}
+
+// 靠近視窗上下邊緣時自動捲動頁面，讓拖曳可以超出目前畫面看得到的範圍。
+let financeAccountAutoScrollRAF = null;
+
+function startFinanceAccountAutoScroll(getPointerY) {
+  const EDGE = 70;
+  const MAX_SPEED = 18;
+
+  function step() {
+    const y = getPointerY();
+    if (y === null) {
+      financeAccountAutoScrollRAF = null;
+      return;
+    }
+    const viewportHeight = window.innerHeight;
+    if (y < EDGE) {
+      window.scrollBy(0, -MAX_SPEED * (1 - y / EDGE));
+    } else if (y > viewportHeight - EDGE) {
+      window.scrollBy(0, MAX_SPEED * (1 - (viewportHeight - y) / EDGE));
+    }
+    financeAccountAutoScrollRAF = requestAnimationFrame(step);
+  }
+
+  if (!financeAccountAutoScrollRAF) {
+    financeAccountAutoScrollRAF = requestAnimationFrame(step);
+  }
+}
+
+function stopFinanceAccountAutoScroll() {
+  if (financeAccountAutoScrollRAF) {
+    cancelAnimationFrame(financeAccountAutoScrollRAF);
+    financeAccountAutoScrollRAF = null;
+  }
+}
+
 function attachFinanceAccountDragHandlers(handle, item, account) {
   let dragging = false;
+  let startX = 0;
   let startY = 0;
-  let startRect = null;
+  let lastPointerX = 0;
+  let lastPointerY = 0;
+  let dropTargetEl = null;
+
+  function clearDropTargetHighlight() {
+    if (dropTargetEl) {
+      dropTargetEl.classList.remove("finance-item-drop-before", "finance-item-drop-after");
+      dropTargetEl = null;
+    }
+  }
+
+  function updateDropTargetHighlight(container) {
+    clearDropTargetHighlight();
+    const target = pickFinanceAccountInsertionTarget(container, item, lastPointerX, lastPointerY);
+    if (target && target !== item) {
+      target.classList.add("finance-item-drop-before");
+      dropTargetEl = target;
+    } else if (!target && container.lastElementChild && container.lastElementChild !== item) {
+      container.lastElementChild.classList.add("finance-item-drop-after");
+      dropTargetEl = container.lastElementChild;
+    }
+  }
 
   handle.addEventListener("pointerdown", function (e) {
     e.preventDefault();
     handle.setPointerCapture(e.pointerId);
     dragging = true;
+    startX = e.clientX;
     startY = e.clientY;
-    startRect = item.getBoundingClientRect();
+    lastPointerX = e.clientX;
+    lastPointerY = e.clientY;
     item.classList.add("finance-item-dragging");
+    startFinanceAccountAutoScroll(function () { return dragging ? lastPointerY : null; });
   });
 
   handle.addEventListener("pointermove", function (e) {
     if (!dragging) return;
-    const deltaY = e.clientY - startY;
-    item.style.transform = `translateY(${deltaY}px)`;
+    lastPointerX = e.clientX;
+    lastPointerY = e.clientY;
+    item.style.transform = `translate(${lastPointerX - startX}px, ${lastPointerY - startY}px)`;
+
+    const container = item.parentElement;
+    if (container) updateDropTargetHighlight(container);
   });
 
-  handle.addEventListener("pointerup", function (e) {
+  handle.addEventListener("pointerup", function () {
     if (!dragging) return;
     dragging = false;
-
-    const deltaY = e.clientY - startY;
-    const draggedCenterY = startRect.top + startRect.height / 2 + deltaY;
+    stopFinanceAccountAutoScroll();
 
     item.style.transform = "";
     item.classList.remove("finance-item-dragging");
+    clearDropTargetHighlight();
 
     const container = item.parentElement;
     if (container) {
-      const siblings = Array.from(container.children).filter(function (el) { return el !== item; });
-      let insertBeforeEl = null;
-
-      for (const sibling of siblings) {
-        const rect = sibling.getBoundingClientRect();
-        const midpoint = rect.top + rect.height / 2;
-        if (draggedCenterY < midpoint) {
-          insertBeforeEl = sibling;
-          break;
-        }
-      }
-
+      const insertBeforeEl = pickFinanceAccountInsertionTarget(container, item, lastPointerX, lastPointerY);
       if (insertBeforeEl) {
         container.insertBefore(item, insertBeforeEl);
       } else {
@@ -2799,8 +2880,10 @@ function attachFinanceAccountDragHandlers(handle, item, account) {
 
   handle.addEventListener("pointercancel", function () {
     dragging = false;
+    stopFinanceAccountAutoScroll();
     item.style.transform = "";
     item.classList.remove("finance-item-dragging");
+    clearDropTargetHighlight();
   });
 }
 

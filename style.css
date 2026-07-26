@@ -342,13 +342,14 @@ h1{
 }
 
 @media (min-width: 768px) {
-    /* 帳戶/負債清單改成多欄排版：欄位變窄之後，名稱/金額/用途不會再被拉得很開，
-       畫面夠寬時也能一次看到 2-3 個帳戶並排，減少滑動。 */
+    /* 帳戶/負債清單改成多欄排版：欄位變窄之後，名稱/金額/用途不會再被拉得很開。
+       固定 2 欄，畫面夠寬（見下方 1100px 那條）才變 3 欄——
+       不用 auto-fill 自動塞欄數，避免超寬螢幕塞出 4、5 欄，內容反而顯得太少太擠。 */
     #finance-assets-list,
     #finance-liabilities-list {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-        gap: 10px;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
         align-items: start;
     }
 
@@ -701,8 +702,21 @@ button.finance-drag-handle {
 .finance-item-dragging {
     position: relative;
     z-index: 50;
-    opacity: 0.85;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+    opacity: 0.9;
+    scale: 1.03;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.55);
+    cursor: grabbing;
+}
+
+/* 拖曳中即時提示「放開後會插進這裡」，比放開才知道結果更明確。
+   用左側／上側的綠色提示線表示插入點，配合 finance-item 本身是 flex/grid 排列，
+   不管手機單欄直排、還是桌面多欄並排都看得出來。 */
+.finance-item-drop-before {
+    box-shadow: inset 3px 0 0 #22c55e;
+}
+
+.finance-item-drop-after {
+    box-shadow: inset -3px 0 0 #22c55e;
 }
 
 .finance-item-editing {
@@ -1186,5 +1200,14 @@ button.finance-drag-handle {
     .finance-item button {
         padding: 6px 8px;
         font-size: 13px;
+    }
+}
+
+/* 畫面夠寬（≥1100px）時，帳戶/負債清單從 2 欄變 3 欄。
+   刻意放在檔案最後面，理由跟上面那段一樣：避免跟前面同選擇器的規則打平時被蓋掉。 */
+@media (min-width: 1100px) {
+    #finance-assets-list,
+    #finance-liabilities-list {
+        grid-template-columns: repeat(3, 1fr);
     }
 }
