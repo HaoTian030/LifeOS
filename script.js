@@ -2679,25 +2679,33 @@ function buildFinanceAccountItem(account, manageMode) {
   const info = document.createElement("div");
   info.className = "finance-item-info";
 
-  const name = document.createElement("div");
+  const nameRow = document.createElement("div");
+  nameRow.className = "finance-item-name-row";
+
+  const name = document.createElement("span");
   name.className = "finance-item-name";
   name.textContent = account.name;
+
+  const balance = document.createElement("span");
+  balance.className = "finance-item-balance";
+  balance.textContent = `$${account.balance.toLocaleString()}`;
+
+  nameRow.appendChild(name);
+  nameRow.appendChild(balance);
 
   const meta = document.createElement("div");
   meta.className = "finance-item-meta";
   meta.textContent = [account.purpose, account.account_type].filter(Boolean).join(" · ");
 
-  info.appendChild(name);
+  info.appendChild(nameRow);
   info.appendChild(meta);
 
-  const balance = document.createElement("div");
-  balance.className = "finance-item-balance";
-  balance.textContent = `$${account.balance.toLocaleString()}`;
-
   item.appendChild(info);
-  item.appendChild(balance);
 
   if (manageMode) {
+    const actions = document.createElement("div");
+    actions.className = "finance-item-actions";
+
     const dragHandle = document.createElement("button");
     dragHandle.type = "button";
     dragHandle.className = "finance-drag-handle";
@@ -2721,63 +2729,78 @@ function buildFinanceAccountItem(account, manageMode) {
       deleteFinanceAccount(account.id);
     });
 
-    item.appendChild(dragHandle);
-    item.appendChild(editButton);
-    item.appendChild(deleteButton);
+    actions.appendChild(dragHandle);
+    actions.appendChild(editButton);
+    actions.appendChild(deleteButton);
+    item.appendChild(actions);
   }
 
   return item;
 }
 
-// 拖曳排序：用 Pointer Events 自己實作（不用套件），滑鼠跟觸控共用同一套邏輯。
-// 拖曳把手上設定 touch-action: none（CSS），避免手機上拖曳被瀏覽器誤判成滑動捲動。
-// 邏輯是「移動時直接跟其他項目比較中線位置、超過就交換 DOM 順序」，
-// 放開時把當下的 DOM 順序寫回 display_order 並存回 Supabase。
-let financeAccountDragState = null;
-
+// 拖曳排序：改成「放開時一次判定最終位置」，不是拖曳過程中即時交換。
+// 拖曳中，項目本身只是用 transform 跟著手指/滑鼠垂直飄動，其他項目完全不動；
+// 放開的瞬間，用當下的最終位置去跟所有項目的中線比一次，直接決定該插進哪個位置。
+// 這樣不管拖多遠、拖多快、中途改變方向都沒問題，因為只判斷一次，不會有中間狀態累積出錯的空間
+// （先前「拖曳中即時交換」的寫法在快速/來回拖曳時容易卡住、只能一格一格動，就是這個原因）。
 function attachFinanceAccountDragHandlers(handle, item, account) {
+  let dragging = false;
+  let startY = 0;
+  let startRect = null;
+
   handle.addEventListener("pointerdown", function (e) {
     e.preventDefault();
     handle.setPointerCapture(e.pointerId);
-    financeAccountDragState = { pointerId: e.pointerId, item };
+    dragging = true;
+    startY = e.clientY;
+    startRect = item.getBoundingClientRect();
     item.classList.add("finance-item-dragging");
   });
 
   handle.addEventListener("pointermove", function (e) {
-    if (!financeAccountDragState || financeAccountDragState.pointerId !== e.pointerId) return;
-    if (financeAccountDragState.item !== item) return;
-
-    const container = item.parentElement;
-    if (!container) return;
-    const siblings = Array.from(container.children).filter(function (el) { return el !== item; });
-    const pointerY = e.clientY;
-
-    for (const sibling of siblings) {
-      const rect = sibling.getBoundingClientRect();
-      const midpoint = rect.top + rect.height / 2;
-      const itemIsBeforeSibling = !!(item.compareDocumentPosition(sibling) & Node.DOCUMENT_POSITION_FOLLOWING);
-
-      if (pointerY < midpoint && !itemIsBeforeSibling) {
-        container.insertBefore(item, sibling);
-        break;
-      }
-      if (pointerY > midpoint && itemIsBeforeSibling) {
-        container.insertBefore(item, sibling.nextSibling);
-        break;
-      }
-    }
+    if (!dragging) return;
+    const deltaY = e.clientY - startY;
+    item.style.transform = `translateY(${deltaY}px)`;
   });
 
   handle.addEventListener("pointerup", function (e) {
-    if (!financeAccountDragState || financeAccountDragState.pointerId !== e.pointerId) return;
+    if (!dragging) return;
+    dragging = false;
+
+    const deltaY = e.clientY - startY;
+    const draggedCenterY = startRect.top + startRect.height / 2 + deltaY;
+
+    item.style.transform = "";
     item.classList.remove("finance-item-dragging");
-    financeAccountDragState = null;
+
+    const container = item.parentElement;
+    if (container) {
+      const siblings = Array.from(container.children).filter(function (el) { return el !== item; });
+      let insertBeforeEl = null;
+
+      for (const sibling of siblings) {
+        const rect = sibling.getBoundingClientRect();
+        const midpoint = rect.top + rect.height / 2;
+        if (draggedCenterY < midpoint) {
+          insertBeforeEl = sibling;
+          break;
+        }
+      }
+
+      if (insertBeforeEl) {
+        container.insertBefore(item, insertBeforeEl);
+      } else {
+        container.appendChild(item);
+      }
+    }
+
     finalizeFinanceAccountReorder(account.category);
   });
 
   handle.addEventListener("pointercancel", function () {
+    dragging = false;
+    item.style.transform = "";
     item.classList.remove("finance-item-dragging");
-    financeAccountDragState = null;
   });
 }
 

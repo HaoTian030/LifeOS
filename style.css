@@ -342,6 +342,21 @@ h1{
 }
 
 @media (min-width: 768px) {
+    /* 帳戶/負債清單改成多欄排版：欄位變窄之後，名稱/金額/用途不會再被拉得很開，
+       畫面夠寬時也能一次看到 2-3 個帳戶並排，減少滑動。 */
+    #finance-assets-list,
+    #finance-liabilities-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 10px;
+        align-items: start;
+    }
+
+    #finance-assets-list .finance-item,
+    #finance-liabilities-list .finance-item {
+        margin-bottom: 0;
+    }
+
     .tab-nav {
         top: 20px;
         left: 20px;
@@ -617,6 +632,13 @@ h1{
     min-width: 0;
 }
 
+.finance-item-name-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+}
+
 .finance-item-name {
     font-weight: 600;
 }
@@ -627,16 +649,15 @@ h1{
 }
 
 .finance-item-balance {
-    cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 6px;
     font-weight: 600;
     white-space: nowrap;
+    flex-shrink: 0;
 }
 
-.finance-item-balance:hover {
-    background: rgba(34, 197, 94, 0.12);
-    outline: 1px dashed #374151;
+.finance-item-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
 }
 
 .finance-item-balance input {
@@ -678,7 +699,9 @@ button.finance-drag-handle {
 }
 
 .finance-item-dragging {
-    opacity: 0.6;
+    position: relative;
+    z-index: 50;
+    opacity: 0.85;
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
 }
 
