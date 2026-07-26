@@ -2439,6 +2439,17 @@ financeAddAccountToggle.addEventListener("click", function () {
   financeAddAccountSection.style.display = isHidden ? "" : "none";
 });
 
+// 管理帳戶開關：平常隱藏拖曳把手／編輯／刪除，減少版面占用，
+// 只有確認要調整順序或修改帳戶時才切進管理模式。
+const financeAccountsManageToggle = document.getElementById("finance-accounts-manage-toggle");
+financeAccountsManageToggle.addEventListener("click", function () {
+  financeAccountsManageMode = !financeAccountsManageMode;
+  financeAccountsManageToggle.textContent = financeAccountsManageMode ? "✅" : "🔧";
+  financeAccountsManageToggle.title = financeAccountsManageMode ? "完成管理" : "管理帳戶";
+  financeAccountsManageToggle.setAttribute("aria-label", financeAccountsManageMode ? "完成管理" : "管理帳戶");
+  renderFinanceAccounts();
+});
+
 async function addFinanceAccount() {
   const name = financeNameInput.value.trim();
   const purpose = financePurposeInput.value.trim();
@@ -2656,9 +2667,14 @@ function buildFinanceAccountEditForm(account, onCancel) {
   return form;
 }
 
-function buildFinanceAccountItem(account, isFirst, isLast) {
+// 帳戶管理模式：平常畫面只顯示名稱/用途/金額，確認無誤後很少用到的
+// 拖曳排序／編輯／刪除，收在「管理帳戶」開關後面才出現，避免一直占版面。
+let financeAccountsManageMode = false;
+
+function buildFinanceAccountItem(account, manageMode) {
   const item = document.createElement("div");
   item.className = "finance-item";
+  item.dataset.accountId = account.id;
 
   const info = document.createElement("div");
   info.className = "finance-item-info";
@@ -2678,86 +2694,122 @@ function buildFinanceAccountItem(account, isFirst, isLast) {
   balance.className = "finance-item-balance";
   balance.textContent = `$${account.balance.toLocaleString()}`;
 
-  const moveUpButton = document.createElement("button");
-  moveUpButton.textContent = "↑";
-  moveUpButton.title = "往上移";
-  moveUpButton.className = "finance-item-move-button";
-  moveUpButton.setAttribute("aria-label", "往上移");
-  moveUpButton.disabled = isFirst;
-  moveUpButton.addEventListener("click", function () {
-    moveFinanceAccount(account, -1);
-  });
-
-  const moveDownButton = document.createElement("button");
-  moveDownButton.textContent = "↓";
-  moveDownButton.title = "往下移";
-  moveDownButton.className = "finance-item-move-button";
-  moveDownButton.setAttribute("aria-label", "往下移");
-  moveDownButton.disabled = isLast;
-  moveDownButton.addEventListener("click", function () {
-    moveFinanceAccount(account, 1);
-  });
-
-  const editButton = document.createElement("button");
-  editButton.textContent = "編輯";
-  editButton.addEventListener("click", function () {
-    const editForm = buildFinanceAccountEditForm(account, function () {
-      editForm.replaceWith(item);
-    });
-    item.replaceWith(editForm);
-  });
-
-  const deleteButton = document.createElement("button");
-  deleteButton.textContent = "刪除";
-  deleteButton.addEventListener("click", function () {
-    deleteFinanceAccount(account.id);
-  });
-
   item.appendChild(info);
   item.appendChild(balance);
-  item.appendChild(moveUpButton);
-  item.appendChild(moveDownButton);
-  item.appendChild(editButton);
-  item.appendChild(deleteButton);
+
+  if (manageMode) {
+    const dragHandle = document.createElement("button");
+    dragHandle.type = "button";
+    dragHandle.className = "finance-drag-handle";
+    dragHandle.textContent = "⠿";
+    dragHandle.title = "按住拖曳排序";
+    dragHandle.setAttribute("aria-label", "按住拖曳排序");
+    attachFinanceAccountDragHandlers(dragHandle, item, account);
+
+    const editButton = document.createElement("button");
+    editButton.textContent = "編輯";
+    editButton.addEventListener("click", function () {
+      const editForm = buildFinanceAccountEditForm(account, function () {
+        editForm.replaceWith(item);
+      });
+      item.replaceWith(editForm);
+    });
+
+    const deleteButton = document.createElement("button");
+    deleteButton.textContent = "刪除";
+    deleteButton.addEventListener("click", function () {
+      deleteFinanceAccount(account.id);
+    });
+
+    item.appendChild(dragHandle);
+    item.appendChild(editButton);
+    item.appendChild(deleteButton);
+  }
 
   return item;
 }
 
-// 帳戶排序：在同一個分類（資產／負債各自）內，跟相鄰帳戶交換 display_order，
-// 不用刪除重建就能調整記帳表單下拉選單、總覽列表的顯示順序。
-async function moveFinanceAccount(account, direction) {
-  const sameCategory = financeAccounts
-    .filter(a => a.category === account.category)
-    .sort((a, b) => a.display_order - b.display_order);
+// 拖曳排序：用 Pointer Events 自己實作（不用套件），滑鼠跟觸控共用同一套邏輯。
+// 拖曳把手上設定 touch-action: none（CSS），避免手機上拖曳被瀏覽器誤判成滑動捲動。
+// 邏輯是「移動時直接跟其他項目比較中線位置、超過就交換 DOM 順序」，
+// 放開時把當下的 DOM 順序寫回 display_order 並存回 Supabase。
+let financeAccountDragState = null;
 
-  const index = sameCategory.findIndex(a => a.id === account.id);
-  const targetIndex = index + direction;
-  if (targetIndex < 0 || targetIndex >= sameCategory.length) return;
+function attachFinanceAccountDragHandlers(handle, item, account) {
+  handle.addEventListener("pointerdown", function (e) {
+    e.preventDefault();
+    handle.setPointerCapture(e.pointerId);
+    financeAccountDragState = { pointerId: e.pointerId, item };
+    item.classList.add("finance-item-dragging");
+  });
 
-  const current = sameCategory[index];
-  const target = sameCategory[targetIndex];
-  const currentOrder = current.display_order;
-  const targetOrder = target.display_order;
+  handle.addEventListener("pointermove", function (e) {
+    if (!financeAccountDragState || financeAccountDragState.pointerId !== e.pointerId) return;
+    if (financeAccountDragState.item !== item) return;
 
-  current.display_order = targetOrder;
-  target.display_order = currentOrder;
+    const container = item.parentElement;
+    if (!container) return;
+    const siblings = Array.from(container.children).filter(function (el) { return el !== item; });
+    const pointerY = e.clientY;
+
+    for (const sibling of siblings) {
+      const rect = sibling.getBoundingClientRect();
+      const midpoint = rect.top + rect.height / 2;
+      const itemIsBeforeSibling = !!(item.compareDocumentPosition(sibling) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+      if (pointerY < midpoint && !itemIsBeforeSibling) {
+        container.insertBefore(item, sibling);
+        break;
+      }
+      if (pointerY > midpoint && itemIsBeforeSibling) {
+        container.insertBefore(item, sibling.nextSibling);
+        break;
+      }
+    }
+  });
+
+  handle.addEventListener("pointerup", function (e) {
+    if (!financeAccountDragState || financeAccountDragState.pointerId !== e.pointerId) return;
+    item.classList.remove("finance-item-dragging");
+    financeAccountDragState = null;
+    finalizeFinanceAccountReorder(account.category);
+  });
+
+  handle.addEventListener("pointercancel", function () {
+    item.classList.remove("finance-item-dragging");
+    financeAccountDragState = null;
+  });
+}
+
+// 放開拖曳後，照目前 DOM 上的實際順序，重新配給該分類（資產／負債各自）
+// 連續的 display_order（0, 1, 2...），並只把真的有變動的帳戶寫回 Supabase。
+async function finalizeFinanceAccountReorder(category) {
+  const container = category === "asset" ? financeAssetsList : financeLiabilitiesList;
+  const orderedIds = Array.from(container.children)
+    .map(function (el) { return el.dataset ? el.dataset.accountId : null; })
+    .filter(Boolean);
+
+  const changed = [];
+  orderedIds.forEach(function (id, index) {
+    const account = financeAccounts.find(a => a.id === id);
+    if (account && account.display_order !== index) {
+      account.display_order = index;
+      changed.push(account);
+    }
+  });
+
+  if (changed.length === 0) return;
 
   if (currentUser) {
-    const { error: error1 } = await supabaseClient
-      .from("finance_accounts")
-      .update({ display_order: current.display_order })
-      .eq("id", current.id);
-    const { error: error2 } = await supabaseClient
-      .from("finance_accounts")
-      .update({ display_order: target.display_order })
-      .eq("id", target.id);
-
-    if (error1 || error2) {
-      console.log("更新排序失敗", error1, error2);
-      alert("排序更新失敗，請稍後再試一次。");
-      current.display_order = currentOrder;
-      target.display_order = targetOrder;
-      return;
+    for (const account of changed) {
+      const { error } = await supabaseClient
+        .from("finance_accounts")
+        .update({ display_order: account.display_order })
+        .eq("id", account.id);
+      if (error) {
+        console.log("更新排序失敗", error);
+        alert("排序更新失敗，請稍後再試一次。");
+      }
     }
   }
 
@@ -2767,7 +2819,7 @@ async function moveFinanceAccount(account, direction) {
 function renderFinanceAccounts() {
   // 排序要回寫到主資料陣列本身（financeAccounts），不能只在這個函式裡臨時排序，
   // 不然記帳表單的帳戶下拉選單（refreshFinanceTxAccountOptions 直接讀 financeAccounts）
-  // 會跟畫面上的順序對不起來——這是本輪回報的 bug，這裡是唯一的資料來源，統一在這裡排好。
+  // 會跟畫面上的順序對不起來。
   financeAccounts.sort((a, b) => a.display_order - b.display_order);
 
   refreshAccountTypeSuggestions(financeCategorySelect.value);
@@ -2777,14 +2829,14 @@ function renderFinanceAccounts() {
   const liabilities = financeAccounts.filter(account => account.category === "liability");
 
   financeAssetsList.innerHTML = "";
-  assets.forEach(function (account, index) {
-    financeAssetsList.appendChild(buildFinanceAccountItem(account, index === 0, index === assets.length - 1));
+  assets.forEach(function (account) {
+    financeAssetsList.appendChild(buildFinanceAccountItem(account, financeAccountsManageMode));
   });
   financeAssetsEmpty.style.display = assets.length > 0 ? "none" : "block";
 
   financeLiabilitiesList.innerHTML = "";
-  liabilities.forEach(function (account, index) {
-    financeLiabilitiesList.appendChild(buildFinanceAccountItem(account, index === 0, index === liabilities.length - 1));
+  liabilities.forEach(function (account) {
+    financeLiabilitiesList.appendChild(buildFinanceAccountItem(account, financeAccountsManageMode));
   });
   financeLiabilitiesEmpty.style.display = liabilities.length > 0 ? "none" : "block";
 

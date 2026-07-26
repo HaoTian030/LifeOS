@@ -663,9 +663,23 @@ h1{
     cursor: not-allowed;
 }
 
-.finance-item-move-button {
-    padding: 6px 8px !important;
-    min-width: 30px;
+button.finance-drag-handle {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 8px;
+    cursor: grab;
+    background: #374151;
+    color: #f3f4f6;
+    font-size: 16px;
+    /* 手機上一定要設這個，不然按住拖曳的手勢會被瀏覽器誤判成整頁上下捲動，
+       導致拖不動、或拖曳跟捲動互相打架。 */
+    touch-action: none;
+    user-select: none;
+}
+
+.finance-item-dragging {
+    opacity: 0.6;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
 }
 
 .finance-item-editing {
