@@ -811,6 +811,7 @@ button.finance-drag-handle {
     background: #22c55e;
     color: #052e12;
     font-weight: 600;
+    margin-left: auto;
 }
 
 .finance-tx-modal-list {
@@ -1254,10 +1255,11 @@ button.finance-drag-handle {
 }
 
 .finance-tx-tag-option {
-    padding: 12px 14px;
+    padding: 12px 8px;
     cursor: pointer;
     font-size: 14px;
     line-height: 1.6;
+    text-align: left;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
