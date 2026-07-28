@@ -262,8 +262,11 @@
                 <input id="finance-tx-amount-input" type="number" placeholder="金額">
                 <input id="finance-tx-date-input" type="date">
                 <input id="finance-tx-category-input" type="text" placeholder="用途備註（自由輸入）">
-                <input id="finance-tx-tag-input" type="text" list="finance-tx-tag-list" placeholder="分類標籤（可輸入，如：住家/個人/信用卡）">
-                <datalist id="finance-tx-tag-list"></datalist>
+                <div id="finance-tx-tag-wrap" class="finance-tx-tag-wrap">
+                    <input id="finance-tx-tag-input" type="text" autocomplete="off" placeholder="分類標籤（可輸入，如：住家/個人/信用卡）">
+                    <button id="finance-tx-tag-toggle" type="button" class="finance-tx-tag-toggle" title="選擇曾用過的標籤" aria-label="選擇曾用過的標籤">▾</button>
+                    <div id="finance-tx-tag-dropdown" class="finance-tx-tag-dropdown" style="display:none;"></div>
+                </div>
                 <button id="finance-tx-add-button" type="button">新增紀錄</button>
             </div>
         </div>

@@ -1902,21 +1902,76 @@ const financeTxAmountInput = document.getElementById("finance-tx-amount-input");
 const financeTxDateInput = document.getElementById("finance-tx-date-input");
 const financeTxCategoryInput = document.getElementById("finance-tx-category-input");
 const financeTxTagInput = document.getElementById("finance-tx-tag-input");
-const financeTxTagList = document.getElementById("finance-tx-tag-list");
+const financeTxTagToggle = document.getElementById("finance-tx-tag-toggle");
+const financeTxTagDropdown = document.getElementById("finance-tx-tag-dropdown");
 const financeTxAddButton = document.getElementById("finance-tx-add-button");
 
 // 分類標籤建議清單 = 使用者用過的所有標籤（去重），沒有預設清單，純粹從實際使用中累積，
-// 跟資產類型的 datalist 是同一套設計邏輯。
-function refreshFinanceTxTagSuggestions() {
-  if (!financeTxTagList) return;
-  const usedTags = [...new Set(financeTransactions.map(tx => tx.tag).filter(Boolean))];
-  financeTxTagList.innerHTML = "";
+// 跟資產類型的 datalist 是同一套設計邏輯，只是這裡改用自製下拉選單呈現（手機上比 datalist 直覺）。
+function getFinanceTxUsedTags() {
+  return [...new Set(financeTransactions.map(tx => tx.tag).filter(Boolean))];
+}
+
+// 依目前輸入框的文字篩選標籤清單（空字串時顯示全部），並畫出下拉選單內容。
+function renderFinanceTxTagDropdown() {
+  if (!financeTxTagDropdown) return;
+  const keyword = financeTxTagInput.value.trim().toLowerCase();
+  const usedTags = getFinanceTxUsedTags().filter(tag =>
+    !keyword || tag.toLowerCase().includes(keyword)
+  );
+
+  financeTxTagDropdown.innerHTML = "";
+
+  if (usedTags.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "finance-tx-tag-empty";
+    empty.textContent = "還沒有用過的標籤，直接輸入新標籤即可";
+    financeTxTagDropdown.appendChild(empty);
+    return;
+  }
+
   usedTags.forEach(function (tag) {
-    const option = document.createElement("option");
-    option.value = tag;
-    financeTxTagList.appendChild(option);
+    const option = document.createElement("div");
+    option.className = "finance-tx-tag-option";
+    option.textContent = tag;
+    option.addEventListener("click", function () {
+      financeTxTagInput.value = tag;
+      financeTxTagDropdown.style.display = "none";
+    });
+    financeTxTagDropdown.appendChild(option);
   });
 }
+
+function refreshFinanceTxTagSuggestions() {
+  renderFinanceTxTagDropdown();
+}
+
+if (financeTxTagToggle && financeTxTagDropdown && financeTxTagInput) {
+  financeTxTagToggle.addEventListener("click", function () {
+    const isOpen = financeTxTagDropdown.style.display !== "none";
+    if (isOpen) {
+      financeTxTagDropdown.style.display = "none";
+    } else {
+      renderFinanceTxTagDropdown();
+      financeTxTagDropdown.style.display = "block";
+    }
+  });
+
+  // 使用者自己打字篩選標籤時，即時更新下拉選單內容並保持開啟。
+  financeTxTagInput.addEventListener("input", function () {
+    renderFinanceTxTagDropdown();
+    financeTxTagDropdown.style.display = "block";
+  });
+
+  // 點擊標籤輸入區塊以外的地方時自動收合，避免擋住其他表單欄位。
+  document.addEventListener("click", function (event) {
+    const wrap = document.getElementById("finance-tx-tag-wrap");
+    if (wrap && !wrap.contains(event.target)) {
+      financeTxTagDropdown.style.display = "none";
+    }
+  });
+}
+
 
 // 記帳帳戶預設值：記住使用者「支出」「收入」「轉帳來源」「轉帳目標」各自最後一次選了哪個帳戶，
 // 下次開記帳視窗自動預選，不用每次手動找（例如支出幾乎都用現金）。純前端記憶，不動資料庫。

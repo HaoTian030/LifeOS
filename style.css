@@ -1211,3 +1211,61 @@ button.finance-drag-handle {
         grid-template-columns: repeat(3, 1fr);
     }
 }
+/* 分類標籤：自製垂直下拉選單，取代原本 datalist 在手機上會擠成橫向捲動列的做法。
+   input 保留自由輸入，旁邊的 ▾ 按鈕負責開關「曾用過的標籤」清單，跟一般下拉選單體驗一致。
+   刻意放在檔案最後面，理由跟前面幾段一樣：避免跟同選擇器規則打平時被蓋掉。 */
+.finance-tx-tag-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 140px;
+}
+
+.finance-tx-tag-wrap input[type="text"] {
+    flex: 1;
+    min-width: 0;
+}
+
+.finance-tx-tag-toggle {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 8px;
+    background: #374151;
+    color: white;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.finance-tx-tag-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: #1f2937;
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 500;
+}
+
+.finance-tx-tag-option {
+    padding: 10px 12px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.finance-tx-tag-option:hover,
+.finance-tx-tag-option:active {
+    background: #374151;
+}
+
+.finance-tx-tag-dropdown .finance-tx-tag-empty {
+    padding: 10px 12px;
+    color: #9ca3af;
+    font-size: 13px;
+}
