@@ -2096,19 +2096,27 @@ financeCategorySelect.addEventListener("change", function () {
 async function applyTransactionBalanceChange(type, accountId, fromAccountId, toAccountId, amount, direction) {
   const changes = [];
 
+  // rawSign 是「錢離開/進入這個帳戶」的資產式方向，跟決策五十二一致：
+  // 支出/轉出 = -1（錢變少的方向），收入/轉入 = +1（錢變多的方向）。
   if (type === "income") {
-    changes.push({ id: accountId, delta: amount * direction });
+    changes.push({ id: accountId, rawSign: 1 });
   } else if (type === "expense") {
-    changes.push({ id: accountId, delta: -amount * direction });
+    changes.push({ id: accountId, rawSign: -1 });
   } else if (type === "transfer") {
-    changes.push({ id: fromAccountId, delta: -amount * direction });
-    changes.push({ id: toAccountId, delta: amount * direction });
+    changes.push({ id: fromAccountId, rawSign: -1 });
+    changes.push({ id: toAccountId, rawSign: 1 });
   }
 
   for (const change of changes) {
     const account = financeAccounts.find(a => a.id === change.id);
     if (!account) continue;
-    const newBalance = account.balance + change.delta;
+
+    // 負債帳戶的餘額慣例是「正數代表欠款金額」，跟資產帳戶的方向剛好相反：
+    // 支出/轉出（例如刷卡消費）要讓欠款增加，收入/轉入（例如還款匯入）要讓欠款減少。
+    // 這裡把 rawSign 反轉一次，讓負債帳戶自動套用正確方向。
+    const effectiveSign = account.category === "liability" ? -change.rawSign : change.rawSign;
+    const delta = effectiveSign * amount * direction;
+    const newBalance = account.balance + delta;
 
     if (currentUser) {
       const { error } = await supabaseClient
