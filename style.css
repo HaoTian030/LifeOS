@@ -1219,8 +1219,8 @@ button.finance-drag-handle {
     display: flex;
     align-items: center;
     gap: 6px;
-    flex: 1;
-    min-width: 140px;
+    flex-basis: 100%;
+    min-width: 0;
 }
 
 .finance-tx-tag-wrap input[type="text"] {
@@ -1254,9 +1254,15 @@ button.finance-drag-handle {
 }
 
 .finance-tx-tag-option {
-    padding: 10px 12px;
+    padding: 12px 14px;
     cursor: pointer;
     font-size: 14px;
+    line-height: 1.6;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.finance-tx-tag-option:last-child {
+    border-bottom: none;
 }
 
 .finance-tx-tag-option:hover,
