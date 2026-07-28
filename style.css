@@ -1217,5 +1217,5 @@ button.finance-drag-handle {
    這裡多留一段底部空間，讓清單可以完整滑動超過 FAB 的浮動範圍。
    刻意放在檔案最後面，理由同上面兩段：避免跟前面同選擇器規則打平時被蓋掉。 */
 #finance-overview-card {
-    padding-bottom: 110px;
+    padding-bottom: 40px;
 }
