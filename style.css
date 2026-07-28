@@ -1211,3 +1211,11 @@ button.finance-drag-handle {
         grid-template-columns: repeat(3, 1fr);
     }
 }
+/* 財務頁面懸浮記帳按鈕（🧾）是 fixed 定位，浮在底部導覽列上方一段距離；
+   資產總覽卡片原本的底部留白只夠清開導覽列，沒有算到 FAB 自己還要再多佔一塊高度，
+   導致清單最下面幾筆（例如負債區塊最後一筆）滑到底時仍被 FAB 蓋住一部分數字。
+   這裡多留一段底部空間，讓清單可以完整滑動超過 FAB 的浮動範圍。
+   刻意放在檔案最後面，理由同上面兩段：避免跟前面同選擇器規則打平時被蓋掉。 */
+#finance-overview-card {
+    padding-bottom: 110px;
+}
