@@ -2382,9 +2382,14 @@ function formatFinanceTxMonthLabel(monthKey) {
 }
 
 const financeTxFilterMonth = document.getElementById("finance-tx-filter-month");
-const financeTxFilterTag = document.getElementById("finance-tx-filter-tag");
+const financeTxFilterTagButton = document.getElementById("finance-tx-filter-tag-button");
+const financeTxFilterTagDropdown = document.getElementById("finance-tx-filter-tag-dropdown");
 const financeTxDetailList = document.getElementById("finance-tx-detail-list");
 const financeTxDetailEmpty = document.getElementById("finance-tx-detail-empty");
+
+// 標籤篩選目前選到的值，"all" 代表全部標籤，跟原本 <select>.value 是同一個概念，
+// 只是換成自己維護一個變數（因為改成自製下拉選單，不再有原生 <select> 可以讀 value）。
+let financeTxCurrentTagFilter = "all";
 
 function refreshFinanceTxFilterOptions() {
   const months = [...new Set(financeTransactions.map(tx => getFinanceTxMonthKey(tx.occurred_on)).filter(Boolean))]
@@ -2405,24 +2410,59 @@ function refreshFinanceTxFilterOptions() {
   });
   financeTxFilterMonth.value = (previousMonth && months.includes(previousMonth)) ? previousMonth : "all";
 
-  const previousTag = financeTxFilterTag.value;
-  financeTxFilterTag.innerHTML = "";
-  const allTagOption = document.createElement("option");
-  allTagOption.value = "all";
-  allTagOption.textContent = "全部標籤";
-  financeTxFilterTag.appendChild(allTagOption);
-  tags.forEach(function (tag) {
-    const option = document.createElement("option");
-    option.value = tag;
-    option.textContent = tag;
-    financeTxFilterTag.appendChild(option);
-  });
-  financeTxFilterTag.value = (previousTag && tags.includes(previousTag)) ? previousTag : "all";
+  // 如果目前選的標籤已經不存在了（例如那筆交易被刪掉），自動退回「全部標籤」。
+  if (financeTxCurrentTagFilter !== "all" && !tags.includes(financeTxCurrentTagFilter)) {
+    financeTxCurrentTagFilter = "all";
+  }
+  financeTxFilterTagButton.textContent = financeTxCurrentTagFilter === "all" ? "全部標籤" : financeTxCurrentTagFilter;
+  renderFinanceTxFilterTagDropdown(tags);
 }
+
+// 畫出「標籤篩選」自製下拉選單的內容，跟記帳彈窗的標籤選單共用同一套樣式，
+// 差別是這裡每個選項是「篩選條件」，選中的那個要標示出來（is-active）。
+function renderFinanceTxFilterTagDropdown(tags) {
+  financeTxFilterTagDropdown.innerHTML = "";
+
+  const allOption = document.createElement("div");
+  allOption.className = "finance-tx-tag-option" + (financeTxCurrentTagFilter === "all" ? " is-active" : "");
+  allOption.textContent = "全部標籤";
+  allOption.addEventListener("click", function () {
+    financeTxCurrentTagFilter = "all";
+    financeTxFilterTagButton.textContent = "全部標籤";
+    financeTxFilterTagDropdown.style.display = "none";
+    renderFinanceTransactionDetailList();
+  });
+  financeTxFilterTagDropdown.appendChild(allOption);
+
+  tags.forEach(function (tag) {
+    const option = document.createElement("div");
+    option.className = "finance-tx-tag-option" + (financeTxCurrentTagFilter === tag ? " is-active" : "");
+    option.textContent = tag;
+    option.addEventListener("click", function () {
+      financeTxCurrentTagFilter = tag;
+      financeTxFilterTagButton.textContent = tag;
+      financeTxFilterTagDropdown.style.display = "none";
+      renderFinanceTransactionDetailList();
+    });
+    financeTxFilterTagDropdown.appendChild(option);
+  });
+}
+
+financeTxFilterTagButton.addEventListener("click", function () {
+  const isOpen = financeTxFilterTagDropdown.style.display !== "none";
+  financeTxFilterTagDropdown.style.display = isOpen ? "none" : "block";
+});
+
+document.addEventListener("click", function (event) {
+  const wrap = document.getElementById("finance-tx-filter-tag-wrap");
+  if (wrap && !wrap.contains(event.target)) {
+    financeTxFilterTagDropdown.style.display = "none";
+  }
+});
 
 function renderFinanceTransactionDetailList() {
   const monthFilter = financeTxFilterMonth.value || "all";
-  const tagFilter = financeTxFilterTag.value || "all";
+  const tagFilter = financeTxCurrentTagFilter || "all";
 
   const filtered = financeTransactions.filter(function (tx) {
     const monthMatch = monthFilter === "all" || getFinanceTxMonthKey(tx.occurred_on) === monthFilter;
@@ -2453,7 +2493,7 @@ function refreshFinanceTxDetailModal() {
 }
 
 financeTxFilterMonth.addEventListener("change", renderFinanceTransactionDetailList);
-financeTxFilterTag.addEventListener("change", renderFinanceTransactionDetailList);
+
 
 financeTxAddButton.addEventListener("click", addFinanceTransaction);
 

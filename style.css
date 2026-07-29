@@ -1279,3 +1279,33 @@ button.finance-drag-handle {
     color: #9ca3af;
     font-size: 13px;
 }
+
+/* 記帳明細的「標籤篩選」原本是原生 <select>，手機上彈出的清單完全由系統接管，
+   文字對齊、配色都碰不到，跟記帳彈窗的標籤欄位觀感不一致。
+   這裡改用同一套自製下拉選單元件，只是這裡是「篩選用」的單選按鈕，不是自由輸入框。
+   刻意放在檔案最後面，理由跟前面幾段一樣：避免跟同選擇器規則打平時被蓋掉。 */
+.finance-tx-filter-tag-wrap {
+    flex: 1;
+    flex-basis: auto;
+    min-width: 0;
+}
+
+.finance-tx-filter-tag-button {
+    width: 100%;
+    padding: 8px;
+    border-radius: 8px;
+    border: none;
+    background: white;
+    color: #111827;
+    text-align: left;
+    font-size: 14px;
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.finance-tx-tag-option.is-active {
+    background: #374151;
+    font-weight: 600;
+}
