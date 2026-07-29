@@ -883,6 +883,7 @@ button.finance-drag-handle {
     border-radius: 8px;
     border: none;
     flex: 1;
+    min-width: 0;
 }
 
 .finance-tx-month-group-header {
