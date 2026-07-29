@@ -1963,6 +1963,14 @@ if (financeTxTagToggle && financeTxTagDropdown && financeTxTagInput) {
     financeTxTagDropdown.style.display = "block";
   });
 
+  // 點擊/聚焦輸入框本身也直接開啟下拉選單，不用非得精準點到旁邊的 ▾ 按鈕——
+  // 單手（尤其走路時用另一隻手）操作時，輸入框本身面積比小按鈕好點很多。
+  // 使用者可以繼續打字篩選，也可以直接點清單裡的項目。
+  financeTxTagInput.addEventListener("focus", function () {
+    renderFinanceTxTagDropdown();
+    financeTxTagDropdown.style.display = "block";
+  });
+
   // 點擊標籤輸入區塊以外的地方時自動收合，避免擋住其他表單欄位。
   document.addEventListener("click", function (event) {
     const wrap = document.getElementById("finance-tx-tag-wrap");
