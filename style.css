@@ -874,6 +874,7 @@ button.finance-drag-handle {
 /* ============ 財務：記帳明細篩選 ============ */
 .finance-tx-detail-filters {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     margin-bottom: 14px;
 }
@@ -883,7 +884,7 @@ button.finance-drag-handle {
     border-radius: 8px;
     border: none;
     flex: 1;
-    min-width: 0;
+    min-width: 110px;
 }
 
 .finance-tx-month-group-header {

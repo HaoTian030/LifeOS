@@ -2382,6 +2382,7 @@ function formatFinanceTxMonthLabel(monthKey) {
 }
 
 const financeTxFilterMonth = document.getElementById("finance-tx-filter-month");
+const financeTxFilterAccount = document.getElementById("finance-tx-filter-account");
 const financeTxFilterTagButton = document.getElementById("finance-tx-filter-tag-button");
 const financeTxFilterTagDropdown = document.getElementById("finance-tx-filter-tag-dropdown");
 const financeTxDetailList = document.getElementById("finance-tx-detail-list");
@@ -2390,6 +2391,16 @@ const financeTxDetailEmpty = document.getElementById("finance-tx-detail-empty");
 // 標籤篩選目前選到的值，"all" 代表全部標籤，跟原本 <select>.value 是同一個概念，
 // 只是換成自己維護一個變數（因為改成自製下拉選單，不再有原生 <select> 可以讀 value）。
 let financeTxCurrentTagFilter = "all";
+
+// 一筆交易「牽涉到」哪些帳戶——支出/收入只有一個帳戶，轉帳有來源跟目的地兩個都算。
+// 這是為了讓「查某個帳戶的所有紀錄」這件事，不用先猜分類標籤才能反推帳戶。
+function getFinanceTxRelatedAccountIds(tx) {
+  const ids = [];
+  if (tx.account_id) ids.push(tx.account_id);
+  if (tx.from_account_id) ids.push(tx.from_account_id);
+  if (tx.to_account_id) ids.push(tx.to_account_id);
+  return ids;
+}
 
 function refreshFinanceTxFilterOptions() {
   const months = [...new Set(financeTransactions.map(tx => getFinanceTxMonthKey(tx.occurred_on)).filter(Boolean))]
@@ -2409,6 +2420,23 @@ function refreshFinanceTxFilterOptions() {
     financeTxFilterMonth.appendChild(option);
   });
   financeTxFilterMonth.value = (previousMonth && months.includes(previousMonth)) ? previousMonth : "all";
+
+  // 帳戶篩選清單直接用目前的 financeAccounts（資產+負債都算），
+  // 不是只列有出現過交易的帳戶，這樣就算某帳戶這個月剛好沒記帳也還是選得到。
+  const previousAccount = financeTxFilterAccount.value;
+  financeTxFilterAccount.innerHTML = "";
+  const allAccountOption = document.createElement("option");
+  allAccountOption.value = "all";
+  allAccountOption.textContent = "全部帳戶";
+  financeTxFilterAccount.appendChild(allAccountOption);
+  financeAccounts.forEach(function (account) {
+    const option = document.createElement("option");
+    option.value = account.id;
+    option.textContent = account.name;
+    financeTxFilterAccount.appendChild(option);
+  });
+  const accountIds = financeAccounts.map(a => a.id);
+  financeTxFilterAccount.value = (previousAccount && accountIds.includes(previousAccount)) ? previousAccount : "all";
 
   // 如果目前選的標籤已經不存在了（例如那筆交易被刪掉），自動退回「全部標籤」。
   if (financeTxCurrentTagFilter !== "all" && !tags.includes(financeTxCurrentTagFilter)) {
@@ -2462,12 +2490,14 @@ document.addEventListener("click", function (event) {
 
 function renderFinanceTransactionDetailList() {
   const monthFilter = financeTxFilterMonth.value || "all";
+  const accountFilter = financeTxFilterAccount.value || "all";
   const tagFilter = financeTxCurrentTagFilter || "all";
 
   const filtered = financeTransactions.filter(function (tx) {
     const monthMatch = monthFilter === "all" || getFinanceTxMonthKey(tx.occurred_on) === monthFilter;
+    const accountMatch = accountFilter === "all" || getFinanceTxRelatedAccountIds(tx).includes(accountFilter);
     const tagMatch = tagFilter === "all" || tx.tag === tagFilter;
-    return monthMatch && tagMatch;
+    return monthMatch && accountMatch && tagMatch;
   });
 
   // 目前篩選結果的小計，只是把畫面上已經看得到的這幾筆加起來，
@@ -2530,6 +2560,7 @@ function refreshFinanceTxDetailModal() {
 }
 
 financeTxFilterMonth.addEventListener("change", renderFinanceTransactionDetailList);
+financeTxFilterAccount.addEventListener("change", renderFinanceTransactionDetailList);
 
 
 financeTxAddButton.addEventListener("click", addFinanceTransaction);
