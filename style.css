@@ -1286,7 +1286,6 @@ button.finance-drag-handle {
    刻意放在檔案最後面，理由跟前面幾段一樣：避免跟同選擇器規則打平時被蓋掉。 */
 .finance-tx-filter-tag-wrap {
     flex: 1;
-    flex-basis: auto;
     min-width: 0;
 }
 
@@ -1308,4 +1307,12 @@ button.finance-drag-handle {
 .finance-tx-tag-option.is-active {
     background: #374151;
     font-weight: 600;
+}
+
+/* 記帳明細的加總小計：只是把目前篩選出來的這幾筆加起來顯示，
+   不牽涉預算或跨分類比較（那個留給 Phase 3），純粹省掉手動心算的麻煩。 */
+.finance-tx-detail-summary {
+    font-size: 13px;
+    color: #d1d5db;
+    margin-bottom: 10px;
 }

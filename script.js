@@ -2470,6 +2470,31 @@ function renderFinanceTransactionDetailList() {
     return monthMatch && tagMatch;
   });
 
+  // 目前篩選結果的小計，只是把畫面上已經看得到的這幾筆加起來，
+  // 不是 Phase 3 那種「跟預算比較」的功能，單純省掉手動計算的麻煩。
+  // 轉帳不算花費也不算收入（只是自己帳戶之間搬錢），所以分開列，不跟支出/收入加在一起。
+  let expenseTotal = 0;
+  let incomeTotal = 0;
+  let transferTotal = 0;
+  filtered.forEach(function (tx) {
+    if (tx.type === "expense") expenseTotal += tx.amount;
+    else if (tx.type === "income") incomeTotal += tx.amount;
+    else if (tx.type === "transfer") transferTotal += tx.amount;
+  });
+
+  const summaryEl = document.getElementById("finance-tx-detail-summary");
+  if (summaryEl) {
+    if (filtered.length === 0) {
+      summaryEl.textContent = "";
+    } else {
+      const parts = [];
+      if (expenseTotal > 0) parts.push("支出合計：$" + expenseTotal.toLocaleString());
+      if (incomeTotal > 0) parts.push("收入合計：$" + incomeTotal.toLocaleString());
+      if (transferTotal > 0) parts.push("轉帳合計：$" + transferTotal.toLocaleString());
+      summaryEl.textContent = parts.join("　");
+    }
+  }
+
   financeTxDetailList.innerHTML = "";
   let lastMonthKey = null;
   filtered.forEach(function (tx) {
