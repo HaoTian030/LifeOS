@@ -2485,13 +2485,25 @@ function renderFinanceTransactionDetailList() {
   const summaryEl = document.getElementById("finance-tx-detail-summary");
   if (summaryEl) {
     if (filtered.length === 0) {
-      summaryEl.textContent = "";
+      summaryEl.innerHTML = "";
     } else {
-      const parts = [];
-      if (expenseTotal > 0) parts.push("支出合計：$" + expenseTotal.toLocaleString());
-      if (incomeTotal > 0) parts.push("收入合計：$" + incomeTotal.toLocaleString());
-      if (transferTotal > 0) parts.push("轉帳合計：$" + transferTotal.toLocaleString());
-      summaryEl.textContent = parts.join("　");
+      const lineParts = [];
+      if (expenseTotal > 0) lineParts.push("支出合計：$" + expenseTotal.toLocaleString());
+      if (incomeTotal > 0) lineParts.push("收入合計：$" + incomeTotal.toLocaleString());
+      const firstLine = lineParts.join("　");
+      const secondLine = transferTotal > 0 ? "轉帳合計：$" + transferTotal.toLocaleString() : "";
+
+      summaryEl.innerHTML = "";
+      if (firstLine) {
+        const row1 = document.createElement("div");
+        row1.textContent = firstLine;
+        summaryEl.appendChild(row1);
+      }
+      if (secondLine) {
+        const row2 = document.createElement("div");
+        row2.textContent = secondLine;
+        summaryEl.appendChild(row2);
+      }
     }
   }
 

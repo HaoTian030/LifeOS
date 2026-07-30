@@ -1314,5 +1314,6 @@ button.finance-drag-handle {
 .finance-tx-detail-summary {
     font-size: 13px;
     color: #d1d5db;
-    margin-bottom: 10px;
+    margin-bottom: 14px;
+    line-height: 1.6;
 }
