@@ -2399,6 +2399,80 @@ function getFinanceAccountName(id) {
   return account ? account.name : "（帳戶已刪除）";
 }
 
+// 標籤選擇元件（可重複建立多份，不依賴固定 id）：輸入框 + ▾ 按鈕 + 下拉選單，
+// 跟記帳彈窗那個標籤欄位是同一套邏輯，抽出來讓「編輯交易」的表單也能用同樣的挑選方式，
+// 不用每次編輯都得手動打字，忘記原本用過的標籤名稱長怎樣。
+function buildFinanceTagPicker(initialValue) {
+  const wrap = document.createElement("div");
+  wrap.className = "finance-tx-tag-wrap";
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.placeholder = "分類標籤";
+  input.value = initialValue || "";
+
+  const toggleButton = document.createElement("button");
+  toggleButton.type = "button";
+  toggleButton.className = "finance-tx-tag-toggle";
+  toggleButton.textContent = "▾";
+  toggleButton.title = "選擇曾用過的標籤";
+  toggleButton.setAttribute("aria-label", "選擇曾用過的標籤");
+
+  const dropdown = document.createElement("div");
+  dropdown.className = "finance-tx-tag-dropdown";
+  dropdown.style.display = "none";
+
+  function renderDropdown() {
+    const keyword = input.value.trim().toLowerCase();
+    const usedTags = getFinanceTxUsedTags().filter(tag => !keyword || tag.toLowerCase().includes(keyword));
+    dropdown.innerHTML = "";
+    if (usedTags.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "finance-tx-tag-empty";
+      empty.textContent = "還沒有用過的標籤，直接輸入新標籤即可";
+      dropdown.appendChild(empty);
+      return;
+    }
+    usedTags.forEach(function (tag) {
+      const option = document.createElement("div");
+      option.className = "finance-tx-tag-option";
+      option.textContent = tag;
+      option.addEventListener("click", function () {
+        input.value = tag;
+        dropdown.style.display = "none";
+      });
+      dropdown.appendChild(option);
+    });
+  }
+
+  toggleButton.addEventListener("click", function () {
+    const isOpen = dropdown.style.display !== "none";
+    if (isOpen) {
+      dropdown.style.display = "none";
+    } else {
+      renderDropdown();
+      dropdown.style.display = "block";
+    }
+  });
+  input.addEventListener("input", function () {
+    renderDropdown();
+    dropdown.style.display = "block";
+  });
+  input.addEventListener("focus", function () {
+    renderDropdown();
+    dropdown.style.display = "block";
+  });
+  document.addEventListener("click", function (event) {
+    if (!wrap.contains(event.target)) dropdown.style.display = "none";
+  });
+
+  wrap.appendChild(input);
+  wrap.appendChild(toggleButton);
+  wrap.appendChild(dropdown);
+
+  return { wrap, input };
+}
+
 // 交易就地編輯：金額打錯、備註/標籤要補充，直接改這一筆，不用刪除重打。
 // 刻意不讓「類型」「帳戶」可以編輯——換類型或換帳戶會讓餘額連動的方向整個改變，
 // 風險比修正金額/日期/備註/標籤高很多，這次先只開放安全的那幾個欄位。
@@ -2421,10 +2495,8 @@ function buildFinanceTransactionEditForm(tx, onCancel) {
   categoryInput.placeholder = "用途備註（自由輸入）";
   categoryInput.value = tx.category || "";
 
-  const tagInput = document.createElement("input");
-  tagInput.type = "text";
-  tagInput.placeholder = "分類標籤";
-  tagInput.value = tx.tag || "";
+  const tagPicker = buildFinanceTagPicker(tx.tag || "");
+  const tagInput = tagPicker.input;
 
   const saveButton = document.createElement("button");
   saveButton.textContent = "儲存";
@@ -2486,7 +2558,7 @@ function buildFinanceTransactionEditForm(tx, onCancel) {
   form.appendChild(amountInput);
   form.appendChild(dateInput);
   form.appendChild(categoryInput);
-  form.appendChild(tagInput);
+  form.appendChild(tagPicker.wrap);
   form.appendChild(saveButton);
   form.appendChild(cancelButton);
 
