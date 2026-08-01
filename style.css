@@ -1318,3 +1318,32 @@ button.finance-drag-handle {
     margin-bottom: 14px;
     line-height: 1.6;
 }
+
+/* 標籤下拉選單裡的重新命名按鈕（✏️）：跟選項文字並排、靠右，
+   點擊要蓋掉原本「點這個選項＝直接選用」的行為，所以按鈕本身要夠好點、不會誤觸到旁邊的文字。 */
+.finance-tx-tag-option-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.finance-tx-tag-option-label {
+    flex: 1;
+    min-width: 0;
+}
+
+.finance-tx-tag-rename-button {
+    flex-shrink: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 4px 6px;
+    border-radius: 6px;
+}
+
+.finance-tx-tag-rename-button:hover,
+.finance-tx-tag-rename-button:active {
+    background: #4b5563;
+}

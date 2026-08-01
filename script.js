@@ -1912,6 +1912,30 @@ function getFinanceTxUsedTags() {
   return [...new Set(financeTransactions.map(tx => tx.tag).filter(Boolean))];
 }
 
+// 重新命名標籤：批次把所有用過舊標籤名稱的交易，改成新名稱，
+// 不用一筆一筆手動改，也不用另外蓋一個標籤資料庫——效果一樣，但不用動資料表結構、風險小很多。
+async function renameFinanceTag(oldTag, newTag) {
+  const affected = financeTransactions.filter(tx => tx.tag === oldTag);
+  if (affected.length === 0) return true;
+
+  if (currentUser) {
+    const { error } = await supabaseClient
+      .from("finance_transactions")
+      .update({ tag: newTag })
+      .eq("user_id", currentUser.id)
+      .eq("tag", oldTag);
+
+    if (error) {
+      console.log("重新命名標籤失敗", error);
+      alert("重新命名失敗，請稍後再試一次。");
+      return false;
+    }
+  }
+
+  affected.forEach(function (tx) { tx.tag = newTag; });
+  return true;
+}
+
 // 依目前輸入框的文字篩選標籤清單（空字串時顯示全部），並畫出下拉選單內容。
 function renderFinanceTxTagDropdown() {
   if (!financeTxTagDropdown) return;
@@ -1932,8 +1956,40 @@ function renderFinanceTxTagDropdown() {
 
   usedTags.forEach(function (tag) {
     const option = document.createElement("div");
-    option.className = "finance-tx-tag-option";
-    option.textContent = tag;
+    option.className = "finance-tx-tag-option finance-tx-tag-option-row";
+
+    const label = document.createElement("span");
+    label.className = "finance-tx-tag-option-label";
+    label.textContent = tag;
+    option.appendChild(label);
+
+    // 標籤內容想事後補充/修改，不用把用過這個標籤的每一筆都刪掉重打——
+    // 點✏️直接改標籤本身的名稱，所有用過它的交易會一起自動更新。
+    const renameButton = document.createElement("button");
+    renameButton.type = "button";
+    renameButton.className = "finance-tx-tag-rename-button";
+    renameButton.textContent = "✏️";
+    renameButton.title = "重新命名這個標籤（會套用到所有用過它的交易）";
+    renameButton.addEventListener("click", function (event) {
+      event.stopPropagation();
+      const newTag = window.prompt("重新命名標籤（會套用到所有用過這個標籤的交易）：", tag);
+      if (newTag === null) return;
+      const trimmed = newTag.trim();
+      if (!trimmed || trimmed === tag) return;
+
+      renameButton.disabled = true;
+      renameFinanceTag(tag, trimmed).then(function (ok) {
+        if (ok) {
+          if (financeTxCurrentTagFilter === tag) financeTxCurrentTagFilter = trimmed;
+          renderFinanceTxTagDropdown();
+          refreshFinanceTxDetailModal();
+        } else {
+          renameButton.disabled = false;
+        }
+      });
+    });
+    option.appendChild(renameButton);
+
     option.addEventListener("click", function () {
       financeTxTagInput.value = tag;
       financeTxTagDropdown.style.display = "none";
@@ -2296,6 +2352,25 @@ async function addFinanceTransaction() {
   refreshFinanceTxDetailModal();
 }
 
+async function saveFinanceTransactionEdits(id, updates) {
+  if (currentUser) {
+    const { error } = await supabaseClient
+      .from("finance_transactions")
+      .update(updates)
+      .eq("id", id);
+
+    if (error) {
+      console.log("更新交易失敗", error);
+      alert("更新失敗，請稍後再試一次。");
+      return false;
+    }
+  }
+
+  const tx = financeTransactions.find(item => item.id === id);
+  if (tx) Object.assign(tx, updates);
+  return true;
+}
+
 async function deleteFinanceTransaction(id) {
   if (!confirm("確定要刪除這筆交易紀錄嗎？相關帳戶餘額會自動還原。")) return;
 
@@ -2322,6 +2397,100 @@ async function deleteFinanceTransaction(id) {
 function getFinanceAccountName(id) {
   const account = financeAccounts.find(a => a.id === id);
   return account ? account.name : "（帳戶已刪除）";
+}
+
+// 交易就地編輯：金額打錯、備註/標籤要補充，直接改這一筆，不用刪除重打。
+// 刻意不讓「類型」「帳戶」可以編輯——換類型或換帳戶會讓餘額連動的方向整個改變，
+// 風險比修正金額/日期/備註/標籤高很多，這次先只開放安全的那幾個欄位。
+// 儲存時：先把舊金額對餘額的影響退回去，寫入新的欄位，再套用新金額的影響——
+// 這跟刪除交易時的還原邏輯是同一套 applyTransactionBalanceChange，只是中間多了「馬上補回新的」這一步。
+function buildFinanceTransactionEditForm(tx, onCancel) {
+  const form = document.createElement("div");
+  form.className = "finance-item finance-item-editing";
+
+  const amountInput = document.createElement("input");
+  amountInput.type = "number";
+  amountInput.value = tx.amount;
+
+  const dateInput = document.createElement("input");
+  dateInput.type = "date";
+  dateInput.value = tx.occurred_on;
+
+  const categoryInput = document.createElement("input");
+  categoryInput.type = "text";
+  categoryInput.placeholder = "用途備註（自由輸入）";
+  categoryInput.value = tx.category || "";
+
+  const tagInput = document.createElement("input");
+  tagInput.type = "text";
+  tagInput.placeholder = "分類標籤";
+  tagInput.value = tx.tag || "";
+
+  const saveButton = document.createElement("button");
+  saveButton.textContent = "儲存";
+  saveButton.addEventListener("click", async function () {
+    const amountRaw = amountInput.value.trim();
+    if (amountRaw === "" || isNaN(Number(amountRaw)) || Number(amountRaw) <= 0) {
+      alert("請輸入大於 0 的金額。");
+      amountInput.focus();
+      return;
+    }
+    if (!dateInput.value) {
+      alert("請選擇日期。");
+      dateInput.focus();
+      return;
+    }
+
+    const newAmount = Number(amountRaw);
+    const newOccurredOn = dateInput.value;
+    const newCategory = categoryInput.value.trim();
+    const newTag = tagInput.value.trim();
+
+    saveButton.disabled = true;
+
+    // 先退回舊金額對帳戶餘額的影響，再套用新金額，帳戶跟類型完全不變，
+    // 所以只有「金額」這個數字會影響餘額，其他欄位（日期/備註/標籤）純粹是紀錄本身的修正。
+    await applyTransactionBalanceChange(tx.type, tx.account_id, tx.from_account_id, tx.to_account_id, tx.amount, -1);
+    await applyTransactionBalanceChange(tx.type, tx.account_id, tx.from_account_id, tx.to_account_id, newAmount, 1);
+
+    const ok = await saveFinanceTransactionEdits(tx.id, {
+      amount: newAmount,
+      occurred_on: newOccurredOn,
+      category: newCategory,
+      tag: newTag
+    });
+
+    if (!ok) {
+      // 更新交易本身失敗的話，把餘額異動退回去，避免帳戶餘額跟交易紀錄兜不起來。
+      await applyTransactionBalanceChange(tx.type, tx.account_id, tx.from_account_id, tx.to_account_id, newAmount, -1);
+      await applyTransactionBalanceChange(tx.type, tx.account_id, tx.from_account_id, tx.to_account_id, tx.amount, 1);
+      saveButton.disabled = false;
+      return;
+    }
+
+    renderFinanceAccounts();
+    refreshFinanceTxTagSuggestions();
+    refreshFinanceTxDetailModal();
+  });
+
+  const cancelButton = document.createElement("button");
+  cancelButton.textContent = "取消";
+  cancelButton.addEventListener("click", onCancel);
+
+  [amountInput, dateInput, categoryInput, tagInput].forEach(function (input) {
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Enter") saveButton.click();
+    });
+  });
+
+  form.appendChild(amountInput);
+  form.appendChild(dateInput);
+  form.appendChild(categoryInput);
+  form.appendChild(tagInput);
+  form.appendChild(saveButton);
+  form.appendChild(cancelButton);
+
+  return form;
 }
 
 function buildFinanceTransactionItem(tx) {
@@ -2354,15 +2523,30 @@ function buildFinanceTransactionItem(tx) {
   const sign = tx.type === "expense" ? "-" : tx.type === "income" ? "+" : "";
   amount.textContent = `${sign}$${tx.amount.toLocaleString()}`;
 
+  const actions = document.createElement("div");
+  actions.className = "finance-item-actions";
+
+  const editButton = document.createElement("button");
+  editButton.textContent = "編輯";
+  editButton.addEventListener("click", function () {
+    const editForm = buildFinanceTransactionEditForm(tx, function () {
+      editForm.replaceWith(item);
+    });
+    item.replaceWith(editForm);
+  });
+
   const deleteButton = document.createElement("button");
   deleteButton.textContent = "刪除";
   deleteButton.addEventListener("click", function () {
     deleteFinanceTransaction(tx.id);
   });
 
+  actions.appendChild(editButton);
+  actions.appendChild(deleteButton);
+
   item.appendChild(info);
   item.appendChild(amount);
-  item.appendChild(deleteButton);
+  item.appendChild(actions);
 
   return item;
 }
