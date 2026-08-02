@@ -1347,3 +1347,60 @@ button.finance-drag-handle {
 .finance-tx-tag-rename-button:active {
     background: #4b5563;
 }
+
+/* 快捷紀錄：常用固定支出/收入/轉帳存成按鈕，記帳時一鍵帶入不用重打，
+   點按鈕本身＝直接送出這筆記帳；旁邊的✏️才是「編輯這個快捷範本」，兩個動作分開，避免誤觸。 */
+.finance-tx-preset-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.finance-tx-preset-button-wrap {
+    display: flex;
+    align-items: stretch;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #374151;
+}
+
+.finance-tx-preset-button {
+    border: none;
+    background: transparent;
+    color: white;
+    padding: 8px 10px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.finance-tx-preset-edit-icon {
+    border: none;
+    background: transparent;
+    color: #d1d5db;
+    padding: 8px 8px;
+    cursor: pointer;
+    font-size: 12px;
+    border-left: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.finance-tx-preset-edit-icon:hover,
+.finance-tx-preset-edit-icon:active {
+    background: #4b5563;
+}
+
+.finance-tx-preset-add-button {
+    border: 1px dashed #6b7280;
+    background: transparent;
+    color: #d1d5db;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.finance-tx-preset-modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 14px;
+}

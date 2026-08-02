@@ -1884,6 +1884,7 @@ const financeNetWorthText = document.getElementById("finance-net-worth");
 // type 分三種：income／expense（單一帳戶）、transfer（來源/目標兩個帳戶）。
 // 交易列表中轉帳只顯示一筆「A → B」，底層仍各自增減兩個帳戶餘額（見本輪交接討論）。
 let financeTransactions = [];
+let financeTxPresets = [];
 let selectedTxType = "expense";
 
 const DEMO_FINANCE_TRANSACTIONS = [
@@ -1902,6 +1903,23 @@ const financeTxAmountInput = document.getElementById("finance-tx-amount-input");
 const financeTxDateInput = document.getElementById("finance-tx-date-input");
 const financeTxCategoryInput = document.getElementById("finance-tx-category-input");
 const financeTxTagInput = document.getElementById("finance-tx-tag-input");
+
+// 快捷紀錄相關 DOM：主記帳彈窗裡的快捷按鈕列，跟另一個獨立的「快捷設定」彈窗（新增/編輯/刪除快捷本身）。
+const financeTxPresetRow = document.getElementById("finance-tx-preset-row");
+const financeTxPresetModalOverlay = document.getElementById("finance-tx-preset-modal-overlay");
+const financeTxPresetModalClose = document.getElementById("finance-tx-preset-modal-close");
+const financeTxPresetTypeButtons = document.querySelectorAll("#finance-tx-preset-type-toggle .finance-tx-type-button");
+const financeTxPresetSingleAccountField = document.getElementById("finance-tx-preset-single-account-field");
+const financeTxPresetTransferFields = document.getElementById("finance-tx-preset-transfer-fields");
+const financeTxPresetAccountSelect = document.getElementById("finance-tx-preset-account-select");
+const financeTxPresetFromSelect = document.getElementById("finance-tx-preset-from-select");
+const financeTxPresetToSelect = document.getElementById("finance-tx-preset-to-select");
+const financeTxPresetLabelInput = document.getElementById("finance-tx-preset-label-input");
+const financeTxPresetAmountInput = document.getElementById("finance-tx-preset-amount-input");
+const financeTxPresetCategoryInput = document.getElementById("finance-tx-preset-category-input");
+const financeTxPresetTagSlot = document.getElementById("finance-tx-preset-tag-slot");
+const financeTxPresetSaveButton = document.getElementById("finance-tx-preset-save-button");
+const financeTxPresetDeleteButton = document.getElementById("finance-tx-preset-delete-button");
 const financeTxTagToggle = document.getElementById("finance-tx-tag-toggle");
 const financeTxTagDropdown = document.getElementById("finance-tx-tag-dropdown");
 const financeTxAddButton = document.getElementById("finance-tx-add-button");
@@ -2163,20 +2181,360 @@ async function loadFinanceTransactionsFromSupabase() {
   }));
 }
 
+// 快捷紀錄：把常用的固定支出/收入/轉帳存成範本，記帳時一鍵帶入不用重打。
+// 這是給「記一筆」表單用的輔助資料，跟 finance_transactions（真正的交易紀錄）是不同的表，
+// 刪除或改動快捷本身，完全不影響已經記過的歷史交易。
+async function loadFinanceTxPresetsFromSupabase() {
+  const { data, error } = await supabaseClient
+    .from("finance_tx_presets")
+    .select("*")
+    .eq("user_id", currentUser.id)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.log("讀取快捷紀錄失敗", error);
+    financeTxPresets = [];
+    return;
+  }
+
+  financeTxPresets = data.map(row => ({
+    id: row.id,
+    label: row.label,
+    type: row.type,
+    account_id: row.account_id,
+    from_account_id: row.from_account_id,
+    to_account_id: row.to_account_id,
+    amount: Number(row.amount),
+    category: row.category,
+    tag: row.tag
+  }));
+}
+
+async function addFinanceTxPreset(preset) {
+  if (currentUser) {
+    const { data, error } = await supabaseClient
+      .from("finance_tx_presets")
+      .insert({
+        user_id: currentUser.id,
+        label: preset.label,
+        type: preset.type,
+        account_id: preset.accountId,
+        from_account_id: preset.fromAccountId,
+        to_account_id: preset.toAccountId,
+        amount: preset.amount,
+        category: preset.category,
+        tag: preset.tag,
+        sort_order: financeTxPresets.length
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.log("新增快捷失敗", error);
+      alert("新增快捷失敗，請稍後再試一次。");
+      return false;
+    }
+
+    financeTxPresets.push({
+      id: data.id,
+      label: data.label,
+      type: data.type,
+      account_id: data.account_id,
+      from_account_id: data.from_account_id,
+      to_account_id: data.to_account_id,
+      amount: Number(data.amount),
+      category: data.category,
+      tag: data.tag
+    });
+  } else {
+    financeTxPresets.push({
+      id: `demo-preset-${Date.now()}`,
+      label: preset.label,
+      type: preset.type,
+      account_id: preset.accountId,
+      from_account_id: preset.fromAccountId,
+      to_account_id: preset.toAccountId,
+      amount: preset.amount,
+      category: preset.category,
+      tag: preset.tag
+    });
+  }
+  return true;
+}
+
+async function updateFinanceTxPreset(id, preset) {
+  const updates = {
+    label: preset.label,
+    type: preset.type,
+    account_id: preset.accountId,
+    from_account_id: preset.fromAccountId,
+    to_account_id: preset.toAccountId,
+    amount: preset.amount,
+    category: preset.category,
+    tag: preset.tag
+  };
+
+  if (currentUser) {
+    const { error } = await supabaseClient
+      .from("finance_tx_presets")
+      .update(updates)
+      .eq("id", id);
+
+    if (error) {
+      console.log("更新快捷失敗", error);
+      alert("更新快捷失敗，請稍後再試一次。");
+      return false;
+    }
+  }
+
+  const existing = financeTxPresets.find(p => p.id === id);
+  if (existing) {
+    existing.label = updates.label;
+    existing.type = updates.type;
+    existing.account_id = updates.account_id;
+    existing.from_account_id = updates.from_account_id;
+    existing.to_account_id = updates.to_account_id;
+    existing.amount = updates.amount;
+    existing.category = updates.category;
+    existing.tag = updates.tag;
+  }
+  return true;
+}
+
+async function deleteFinanceTxPreset(id) {
+  if (currentUser) {
+    const { error } = await supabaseClient
+      .from("finance_tx_presets")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.log("刪除快捷失敗", error);
+      alert("刪除快捷失敗，請稍後再試一次。");
+      return false;
+    }
+  }
+  financeTxPresets = financeTxPresets.filter(p => p.id !== id);
+  return true;
+}
+
+// 快捷按鈕列：畫出所有已存的快捷 + 一顆「新增快捷」。
+// 點按鈕本身＝直接送出這筆記帳（今天日期），旁邊的✏️才會打開設定彈窗去編輯這個快捷範本。
+function renderFinanceTxPresetButtons() {
+  if (!financeTxPresetRow) return;
+  financeTxPresetRow.innerHTML = "";
+
+  financeTxPresets.forEach(function (preset) {
+    const wrap = document.createElement("div");
+    wrap.className = "finance-tx-preset-button-wrap";
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "finance-tx-preset-button";
+    button.textContent = preset.label;
+    button.addEventListener("click", async function () {
+      button.disabled = true;
+      await submitFinanceTransaction({
+        type: preset.type,
+        accountId: preset.account_id,
+        fromAccountId: preset.from_account_id,
+        toAccountId: preset.to_account_id,
+        amount: preset.amount,
+        category: preset.category,
+        tag: preset.tag,
+        occurredOn: new Date().toISOString().split("T")[0]
+      });
+      button.disabled = false;
+    });
+
+    const editIcon = document.createElement("button");
+    editIcon.type = "button";
+    editIcon.className = "finance-tx-preset-edit-icon";
+    editIcon.textContent = "✏️";
+    editIcon.title = "編輯這個快捷";
+    editIcon.addEventListener("click", function () {
+      openFinanceTxPresetModal(preset);
+    });
+
+    wrap.appendChild(button);
+    wrap.appendChild(editIcon);
+    financeTxPresetRow.appendChild(wrap);
+  });
+
+  const addButton = document.createElement("button");
+  addButton.type = "button";
+  addButton.className = "finance-tx-preset-add-button";
+  addButton.textContent = "➕ 新增快捷";
+  addButton.addEventListener("click", function () {
+    openFinanceTxPresetModal(null);
+  });
+  financeTxPresetRow.appendChild(addButton);
+}
+
+// 快捷設定彈窗的類型切換（跟主記帳表單同一套邏輯，只是欄位換成快捷專用的一組）。
+let financeTxPresetSelectedType = "expense";
+let financeTxPresetEditingId = null;
+let financeTxPresetTagPicker = null;
+
+function refreshFinanceTxPresetAccountOptions() {
+  [financeTxPresetAccountSelect, financeTxPresetFromSelect, financeTxPresetToSelect].forEach(function (selectEl) {
+    if (!selectEl) return;
+    const previousValue = selectEl.value;
+    selectEl.innerHTML = "";
+    financeAccounts.forEach(function (account) {
+      const option = document.createElement("option");
+      option.value = account.id;
+      option.textContent = account.name;
+      selectEl.appendChild(option);
+    });
+    if (previousValue && financeAccounts.some(function (a) { return a.id === previousValue; })) {
+      selectEl.value = previousValue;
+    }
+  });
+}
+
+function setFinanceTxPresetType(type) {
+  financeTxPresetSelectedType = type;
+  financeTxPresetTypeButtons.forEach(function (btn) {
+    btn.classList.toggle("is-active", btn.dataset.txType === type);
+  });
+  const isTransfer = type === "transfer";
+  financeTxPresetSingleAccountField.style.display = isTransfer ? "none" : "";
+  financeTxPresetTransferFields.style.display = isTransfer ? "flex" : "none";
+}
+
+financeTxPresetTypeButtons.forEach(function (button) {
+  button.addEventListener("click", function () {
+    setFinanceTxPresetType(button.dataset.txType);
+  });
+});
+
+// 開啟快捷設定彈窗：preset 為 null 代表「新增」，帶入一個既有物件代表「編輯」。
+function openFinanceTxPresetModal(preset) {
+  refreshFinanceTxPresetAccountOptions();
+  financeTxPresetEditingId = preset ? preset.id : null;
+
+  financeTxPresetLabelInput.value = preset ? preset.label : "";
+  financeTxPresetAmountInput.value = preset ? preset.amount : "";
+  financeTxPresetCategoryInput.value = preset ? (preset.category || "") : "";
+
+  // 標籤欄位每次開啟都重新建立一個乾淨的挑選元件，避免重複開關累積出多個下拉選單。
+  financeTxPresetTagSlot.innerHTML = "";
+  financeTxPresetTagPicker = buildFinanceTagPicker(preset ? (preset.tag || "") : "");
+  financeTxPresetTagSlot.appendChild(financeTxPresetTagPicker.wrap);
+
+  setFinanceTxPresetType(preset ? preset.type : "expense");
+  if (preset) {
+    if (preset.type === "transfer") {
+      financeTxPresetFromSelect.value = preset.from_account_id || "";
+      financeTxPresetToSelect.value = preset.to_account_id || "";
+    } else {
+      financeTxPresetAccountSelect.value = preset.account_id || "";
+    }
+  }
+
+  financeTxPresetDeleteButton.style.display = preset ? "" : "none";
+  financeTxPresetModalOverlay.style.display = "flex";
+}
+
+function closeFinanceTxPresetModal() {
+  financeTxPresetModalOverlay.style.display = "none";
+  financeTxPresetEditingId = null;
+}
+
+financeTxPresetModalClose.addEventListener("click", closeFinanceTxPresetModal);
+
+financeTxPresetSaveButton.addEventListener("click", async function () {
+  const label = financeTxPresetLabelInput.value.trim();
+  const amountRaw = financeTxPresetAmountInput.value.trim();
+
+  if (!label) {
+    alert("請輸入快捷名稱。");
+    financeTxPresetLabelInput.focus();
+    return;
+  }
+  if (amountRaw === "" || isNaN(Number(amountRaw)) || Number(amountRaw) <= 0) {
+    alert("請輸入大於 0 的金額。");
+    financeTxPresetAmountInput.focus();
+    return;
+  }
+
+  const type = financeTxPresetSelectedType;
+  let accountId = null, fromAccountId = null, toAccountId = null;
+
+  if (type === "transfer") {
+    fromAccountId = financeTxPresetFromSelect.value;
+    toAccountId = financeTxPresetToSelect.value;
+    if (!fromAccountId || !toAccountId) {
+      alert("請選擇轉帳的來源與目標帳戶。");
+      return;
+    }
+    if (fromAccountId === toAccountId) {
+      alert("來源帳戶跟目標帳戶不能相同。");
+      return;
+    }
+  } else {
+    accountId = financeTxPresetAccountSelect.value;
+    if (!accountId) {
+      alert("請先建立至少一個帳戶，才能設定快捷。");
+      return;
+    }
+  }
+
+  const presetData = {
+    label,
+    type,
+    accountId,
+    fromAccountId,
+    toAccountId,
+    amount: Number(amountRaw),
+    category: financeTxPresetCategoryInput.value.trim(),
+    tag: financeTxPresetTagPicker.input.value.trim()
+  };
+
+  financeTxPresetSaveButton.disabled = true;
+  const ok = financeTxPresetEditingId
+    ? await updateFinanceTxPreset(financeTxPresetEditingId, presetData)
+    : await addFinanceTxPreset(presetData);
+  financeTxPresetSaveButton.disabled = false;
+
+  if (!ok) return;
+  renderFinanceTxPresetButtons();
+  closeFinanceTxPresetModal();
+});
+
+financeTxPresetDeleteButton.addEventListener("click", async function () {
+  if (!financeTxPresetEditingId) return;
+  if (!window.confirm("確定要刪除這個快捷嗎？不會影響已經記過的歷史交易。")) return;
+
+  financeTxPresetDeleteButton.disabled = true;
+  const ok = await deleteFinanceTxPreset(financeTxPresetEditingId);
+  financeTxPresetDeleteButton.disabled = false;
+
+  if (!ok) return;
+  renderFinanceTxPresetButtons();
+  closeFinanceTxPresetModal();
+});
+
 async function initFinanceForUser() {
   await loadFinanceAccountsFromSupabase();
   await loadFinanceTransactionsFromSupabase();
+  await loadFinanceTxPresetsFromSupabase();
   setFinanceTxDateToday();
   renderFinanceAccounts();
   refreshFinanceTxTagSuggestions();
+  renderFinanceTxPresetButtons();
 }
 
 function initFinanceForGuest() {
   financeAccounts = DEMO_FINANCE_ACCOUNTS.map(item => ({ ...item }));
   financeTransactions = DEMO_FINANCE_TRANSACTIONS.map(item => ({ ...item }));
+  financeTxPresets = [];
   setFinanceTxDateToday();
   renderFinanceAccounts();
   refreshFinanceTxTagSuggestions();
+  renderFinanceTxPresetButtons();
 }
 
 // 資產類型／負債類型建議清單 = 該分類的預設清單 + 使用者自己在「同一個分類」下輸入過、
@@ -2253,6 +2611,67 @@ async function applyTransactionBalanceChange(type, accountId, fromAccountId, toA
   }
 }
 
+// 送出一筆交易的核心邏輯：寫入資料庫（或訪客模式的本機陣列）+ 連動帳戶餘額 + 更新畫面。
+// 記帳表單跟快捷按鈕都呼叫這個函式，差別只在於「資料從表單讀」還是「直接帶入快捷存的值」。
+async function submitFinanceTransaction({ type, accountId, fromAccountId, toAccountId, amount, category, tag, occurredOn }) {
+  if (currentUser) {
+    const { data, error } = await supabaseClient
+      .from("finance_transactions")
+      .insert({
+        user_id: currentUser.id,
+        type,
+        account_id: accountId,
+        from_account_id: fromAccountId,
+        to_account_id: toAccountId,
+        amount,
+        category,
+        tag,
+        occurred_on: occurredOn
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.log("新增交易失敗", error);
+      alert("新增失敗，請稍後再試一次。");
+      return false;
+    }
+
+    financeTransactions.unshift({
+      id: data.id,
+      type: data.type,
+      account_id: data.account_id,
+      from_account_id: data.from_account_id,
+      to_account_id: data.to_account_id,
+      amount: Number(data.amount),
+      category: data.category,
+      tag: data.tag,
+      occurred_on: data.occurred_on
+    });
+  } else {
+    financeTransactions.unshift({
+      id: `demo-tx-${Date.now()}`,
+      type, account_id: accountId, from_account_id: fromAccountId, to_account_id: toAccountId,
+      amount, category, tag, occurred_on: occurredOn
+    });
+  }
+
+  // 記住這次選用的帳戶，下次同類型記帳時自動預選（見本輪交接：帳戶預設值）。
+  if (type === "transfer") {
+    savePreferredAccountDefault("transfer_from", fromAccountId);
+    savePreferredAccountDefault("transfer_to", toAccountId);
+  } else {
+    savePreferredAccountDefault(type, accountId);
+  }
+
+  await applyTransactionBalanceChange(type, accountId, fromAccountId, toAccountId, amount, 1);
+
+  renderFinanceAccounts();
+  refreshFinanceTxTagSuggestions();
+  refreshFinanceTxDetailModal();
+  return true;
+}
+
 async function addFinanceTransaction() {
   const type = selectedTxType;
   const amountRaw = financeTxAmountInput.value.trim();
@@ -2291,65 +2710,13 @@ async function addFinanceTransaction() {
     }
   }
 
-  if (currentUser) {
-    const { data, error } = await supabaseClient
-      .from("finance_transactions")
-      .insert({
-        user_id: currentUser.id,
-        type,
-        account_id: accountId,
-        from_account_id: fromAccountId,
-        to_account_id: toAccountId,
-        amount,
-        category,
-        tag,
-        occurred_on: occurredOn
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.log("新增交易失敗", error);
-      alert("新增失敗，請稍後再試一次。");
-      return;
-    }
-
-    financeTransactions.unshift({
-      id: data.id,
-      type: data.type,
-      account_id: data.account_id,
-      from_account_id: data.from_account_id,
-      to_account_id: data.to_account_id,
-      amount: Number(data.amount),
-      category: data.category,
-      tag: data.tag,
-      occurred_on: data.occurred_on
-    });
-  } else {
-    financeTransactions.unshift({
-      id: `demo-tx-${Date.now()}`,
-      type, account_id: accountId, from_account_id: fromAccountId, to_account_id: toAccountId,
-      amount, category, tag, occurred_on: occurredOn
-    });
-  }
-
-  // 記住這次選用的帳戶，下次同類型記帳時自動預選（見本輪交接：帳戶預設值）。
-  if (type === "transfer") {
-    savePreferredAccountDefault("transfer_from", fromAccountId);
-    savePreferredAccountDefault("transfer_to", toAccountId);
-  } else {
-    savePreferredAccountDefault(type, accountId);
-  }
-
-  await applyTransactionBalanceChange(type, accountId, fromAccountId, toAccountId, amount, 1);
+  const ok = await submitFinanceTransaction({ type, accountId, fromAccountId, toAccountId, amount, category, tag, occurredOn });
+  if (!ok) return;
 
   financeTxAmountInput.value = "";
   financeTxCategoryInput.value = "";
   financeTxTagInput.value = "";
   setFinanceTxDateToday();
-  renderFinanceAccounts();
-  refreshFinanceTxTagSuggestions();
-  refreshFinanceTxDetailModal();
 }
 
 async function saveFinanceTransactionEdits(id, updates) {
