@@ -3030,7 +3030,9 @@ function refreshFinanceTxFilterOptions() {
     .sort(function (a, b) { return b.localeCompare(a); });
   const tags = [...new Set(financeTransactions.map(tx => tx.tag).filter(Boolean))];
 
-  const previousMonth = financeTxFilterMonth.value;
+  // 每次打開記帳明細，月份直接預選「這個月」，不用先點掉「全部月份」才看得到當月資料——
+  // 想看其他月份或全部，使用者自己再切換即可（這是使用者明確要的行為：每次打開都重置回當月，
+  // 不是「記住上次選過哪個月」）。
   financeTxFilterMonth.innerHTML = "";
   const allMonthOption = document.createElement("option");
   allMonthOption.value = "all";
@@ -3042,7 +3044,8 @@ function refreshFinanceTxFilterOptions() {
     option.textContent = formatFinanceTxMonthLabel(monthKey);
     financeTxFilterMonth.appendChild(option);
   });
-  financeTxFilterMonth.value = (previousMonth && months.includes(previousMonth)) ? previousMonth : "all";
+  const todayMonthKey = getFinanceTxMonthKey(new Date().toISOString().split("T")[0]);
+  financeTxFilterMonth.value = months.includes(todayMonthKey) ? todayMonthKey : "all";
 
   // 帳戶篩選清單直接用目前的 financeAccounts（資產+負債都算），
   // 不是只列有出現過交易的帳戶，這樣就算某帳戶這個月剛好沒記帳也還是選得到。
