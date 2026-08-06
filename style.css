@@ -1404,3 +1404,248 @@ button.finance-drag-handle {
     gap: 10px;
     margin-top: 14px;
 }
+
+/* ============ 財務 Phase 3：分配總覽（放檔案最後，避免被前面同選擇器蓋掉） ============ */
+
+/* 資產帳戶主畫面：可運用金額當主數字時，餘額改成獨立徽章顯示在 meta 那行旁邊。
+   只有帳戶有進行中分配項目、可運用跟餘額不同時才會出現這顆徽章，
+   沒有分配項目的帳戶完全不受影響，畫面跟改版前一樣。 */
+.finance-item-balance-badge {
+    display: inline-block;
+    background: rgba(59, 130, 246, 0.15);
+    color: #93c5fd;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    margin-left: 6px;
+}
+
+.modal-box-wide {
+    width: min(720px, 92vw);
+}
+
+.finance-budget-forecast {
+    background: #111827;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+}
+
+.finance-budget-forecast-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    color: #9ca3af;
+    padding: 4px 0;
+}
+
+.finance-budget-forecast-row span:last-child {
+    color: #f3f4f6;
+}
+
+.finance-budget-forecast-total {
+    border-top: 1px solid #374151;
+    margin-top: 6px;
+    padding-top: 10px;
+    font-size: 14px;
+}
+
+.finance-budget-forecast-total span:last-child {
+    font-size: 20px;
+    font-weight: 700;
+    color: #22c55e;
+}
+
+.finance-budget-add-toggle {
+    width: 100%;
+    background: none;
+    border: 1px dashed #6b7280;
+    color: #d1d5db;
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 13px;
+    cursor: pointer;
+    margin-bottom: 12px;
+}
+
+#finance-budget-list {
+    overflow-y: auto;
+    max-height: 50vh;
+}
+
+.finance-budget-account-group {
+    background: #111827;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+}
+
+.finance-budget-account-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 10px;
+}
+
+.finance-budget-account-header-name {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.finance-budget-account-header-available {
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+.finance-budget-item {
+    margin-bottom: 12px;
+}
+
+.finance-budget-item:last-child {
+    margin-bottom: 0;
+}
+
+.finance-budget-item-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    margin-bottom: 5px;
+}
+
+.finance-budget-item-status {
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+.finance-budget-item-status.is-done {
+    color: #22c55e;
+}
+
+.finance-budget-item-status.is-over {
+    color: #fca5a5;
+}
+
+.finance-budget-item-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.finance-budget-item-actions button {
+    background: none;
+    border: none;
+    color: #6b7280;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 2px 4px;
+}
+
+.finance-budget-item-actions button:hover {
+    color: #d1d5db;
+}
+
+.finance-budget-progress {
+    background: #374151;
+    border-radius: 4px;
+    height: 6px;
+    overflow: hidden;
+}
+
+.finance-budget-progress-fill {
+    background: #22c55e;
+    height: 6px;
+    border-radius: 4px;
+}
+
+.finance-budget-progress-fill.is-over {
+    background: #f87171;
+    animation: financeBudgetOverPulse 1s ease-in-out infinite;
+}
+
+@keyframes financeBudgetOverPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+}
+
+/* 智慧預填建議條：進帳戶＋金額都填了之後才會出現，猜錯可以直接改選，
+   不影響原本的記帳流程（見決策：規則式智慧預填，同帳戶+金額相近+歷史紀錄）。 */
+.finance-tx-budget-suggestion {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    background: rgba(34, 197, 94, 0.12);
+    border-radius: 8px;
+    padding: 10px 12px;
+    flex-wrap: wrap;
+}
+
+.finance-tx-budget-suggestion-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.finance-tx-budget-suggestion-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.finance-tx-budget-suggestion-label {
+    font-size: 13px;
+    color: #f3f4f6;
+}
+
+.finance-tx-budget-suggestion-meta {
+    font-size: 11px;
+    color: #6b7280;
+    margin-top: 1px;
+}
+
+.finance-tx-budget-suggestion-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+#finance-tx-budget-suggestion-confirm {
+    background: #22c55e;
+    color: #052e12;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.finance-tx-budget-suggestion-change {
+    background: none;
+    border: 1px solid #374151;
+    color: #9ca3af;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.finance-tx-budget-manual-wrap select {
+    width: 100%;
+}
+
+@media (min-width: 768px) {
+    /* 分配總覽主要在電腦上用（決策：方案B全攤平＋沿用既有多欄模式），
+       帳戶區塊並排兩欄顯示，滑動距離自然變短；手機維持單欄，
+       跟資產總覽帳戶清單套用同一套斷點與邏輯，不另外發明新規則。 */
+    #finance-budget-list {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        align-items: start;
+    }
+
+    .finance-budget-account-group {
+        margin-bottom: 0;
+    }
+}

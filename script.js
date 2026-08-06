@@ -1924,6 +1924,42 @@ const financeTxTagToggle = document.getElementById("finance-tx-tag-toggle");
 const financeTxTagDropdown = document.getElementById("finance-tx-tag-dropdown");
 const financeTxAddButton = document.getElementById("finance-tx-add-button");
 
+// ---- Phase 3：finance_budget_items（分配總覽，DD-001 Intentions 層落地） ----
+// 一筆 budget_item = 某個帳戶裡「一項規劃好的用途與金額」（例如「玉山銀行·三商壽險保費·10896」）。
+// 跟交易的關聯是直接外鍵 budget_item_id，不用 tag 文字比對——
+// 因為同一個帳戶底下常常有多筆同類型但用途不同的分配（例如兩張保單都想歸類「保費」），
+// tag 文字比對沒辦法分清楚該算給哪一筆，直接關聯才精準（見討論記錄）。
+let financeBudgetItems = [];
+let selectedFinanceTxBudgetItemId = null; // 記帳表單當下選定/確認的分配項目，送出後隨表單重置
+
+const financeBudgetOpenButton = document.getElementById("finance-budget-open-button");
+const financeBudgetModalOverlay = document.getElementById("finance-budget-modal-overlay");
+const financeBudgetModalClose = document.getElementById("finance-budget-modal-close");
+const financeBudgetForecastCurrent = document.getElementById("finance-budget-forecast-current");
+const financeBudgetForecastMonthly = document.getElementById("finance-budget-forecast-monthly");
+const financeBudgetForecastAvailable = document.getElementById("finance-budget-forecast-available");
+const financeBudgetAddToggle = document.getElementById("finance-budget-add-toggle");
+const financeBudgetAddSection = document.getElementById("finance-budget-add-section");
+const financeBudgetAccountSelect = document.getElementById("finance-budget-account-select");
+const financeBudgetLabelInput = document.getElementById("finance-budget-label-input");
+const financeBudgetAmountInput = document.getElementById("finance-budget-amount-input");
+const financeBudgetTagSlot = document.getElementById("finance-budget-tag-slot");
+const financeBudgetCycleSelect = document.getElementById("finance-budget-cycle-select");
+const financeBudgetSaveButton = document.getElementById("finance-budget-save-button");
+const financeBudgetEmpty = document.getElementById("finance-budget-empty");
+const financeBudgetList = document.getElementById("finance-budget-list");
+let financeBudgetTagPicker = null;
+let financeBudgetEditingId = null; // 目前正在編輯的分配項目 id，null 代表是「新增」模式
+
+const financeTxBudgetSuggestion = document.getElementById("finance-tx-budget-suggestion");
+const financeTxBudgetSuggestionLabel = document.getElementById("finance-tx-budget-suggestion-label");
+const financeTxBudgetSuggestionMeta = document.getElementById("finance-tx-budget-suggestion-meta");
+const financeTxBudgetSuggestionConfirm = document.getElementById("finance-tx-budget-suggestion-confirm");
+const financeTxBudgetSuggestionChange = document.getElementById("finance-tx-budget-suggestion-change");
+const financeTxBudgetManualWrap = document.getElementById("finance-tx-budget-manual-wrap");
+const financeTxBudgetManualSelect = document.getElementById("finance-tx-budget-manual-select");
+let financeTxBudgetSuggestedId = null; // 目前猜出來、還沒被使用者確認的建議項目 id
+
 // 分類標籤建議清單 = 使用者用過的所有標籤（去重），沒有預設清單，純粹從實際使用中累積，
 // 跟資產類型的 datalist 是同一套設計邏輯，只是這裡改用自製下拉選單呈現（手機上比 datalist 直覺）。
 function getFinanceTxUsedTags() {
@@ -2102,6 +2138,8 @@ financeTxTypeButtons.forEach(function (button) {
     financeTxSingleAccountField.style.display = isTransfer ? "none" : "";
     financeTxTransferFields.style.display = isTransfer ? "flex" : "none";
     applyPreferredDefaultsForCurrentType();
+    resetFinanceTxBudgetSuggestion();
+    if (!isTransfer) updateFinanceTxBudgetSuggestion();
   });
 });
 
@@ -2177,7 +2215,8 @@ async function loadFinanceTransactionsFromSupabase() {
     amount: Number(row.amount),
     category: row.category,
     tag: row.tag,
-    occurred_on: row.occurred_on
+    occurred_on: row.occurred_on,
+    budget_item_id: row.budget_item_id
   }));
 }
 
@@ -2209,6 +2248,152 @@ async function loadFinanceTxPresetsFromSupabase() {
     category: row.category,
     tag: row.tag
   }));
+}
+
+async function loadFinanceBudgetItemsFromSupabase() {
+  const { data, error } = await supabaseClient
+    .from("finance_budget_items")
+    .select("*")
+    .eq("user_id", currentUser.id)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.log("讀取分配項目失敗", error);
+    financeBudgetItems = [];
+    return;
+  }
+
+  financeBudgetItems = data.map(row => ({
+    id: row.id,
+    account_id: row.account_id,
+    tag: row.tag,
+    label: row.label,
+    planned_amount: Number(row.planned_amount),
+    cycle: row.cycle,
+    active: row.active
+  }));
+}
+
+async function addFinanceBudgetItem(item) {
+  if (currentUser) {
+    const { data, error } = await supabaseClient
+      .from("finance_budget_items")
+      .insert({
+        user_id: currentUser.id,
+        account_id: item.accountId,
+        tag: item.tag,
+        label: item.label,
+        planned_amount: item.plannedAmount,
+        cycle: item.cycle,
+        active: true,
+        sort_order: financeBudgetItems.length
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.log("新增分配項目失敗", error);
+      alert("新增失敗，請稍後再試一次。");
+      return false;
+    }
+
+    financeBudgetItems.push({
+      id: data.id,
+      account_id: data.account_id,
+      tag: data.tag,
+      label: data.label,
+      planned_amount: Number(data.planned_amount),
+      cycle: data.cycle,
+      active: data.active
+    });
+  } else {
+    financeBudgetItems.push({
+      id: `demo-budget-${Date.now()}`,
+      account_id: item.accountId,
+      tag: item.tag,
+      label: item.label,
+      planned_amount: item.plannedAmount,
+      cycle: item.cycle,
+      active: true
+    });
+  }
+  return true;
+}
+
+async function updateFinanceBudgetItem(id, updates) {
+  if (currentUser) {
+    const { error } = await supabaseClient
+      .from("finance_budget_items")
+      .update(updates)
+      .eq("id", id);
+
+    if (error) {
+      console.log("更新分配項目失敗", error);
+      alert("更新失敗，請稍後再試一次。");
+      return false;
+    }
+  }
+
+  const item = financeBudgetItems.find(b => b.id === id);
+  if (item) Object.assign(item, updates);
+  return true;
+}
+
+async function deleteFinanceBudgetItem(id) {
+  if (currentUser) {
+    const { error } = await supabaseClient.from("finance_budget_items").delete().eq("id", id);
+    if (error) {
+      console.log("刪除分配項目失敗", error);
+      alert("刪除失敗，請稍後再試一次。");
+      return false;
+    }
+  }
+
+  financeBudgetItems = financeBudgetItems.filter(b => b.id !== id);
+  return true;
+}
+
+// 這筆分配項目「已經支付/完成」多少——直接加總已經關聯到這個 budget_item_id 的交易，
+// 不再用 tag 文字比對（見討論記錄：同帳戶常有多個同類型但用途不同的分配，文字比對分不清楚）。
+// income 類型視為「還款/沖銷」，從已支付金額扣回去，其餘（expense/transfer）都算已支付。
+function getBudgetItemPaidAmount(budgetItemId) {
+  return financeTransactions
+    .filter(tx => tx.budget_item_id === budgetItemId)
+    .reduce((sum, tx) => sum + (tx.type === "income" ? -tx.amount : tx.amount), 0);
+}
+
+// 這個帳戶裡，還沒付完的分配項目一共欠多少（每筆分配項目算 max(應分配-已付,0)，
+// 已經付超過的不會倒扣，只是在畫面上顯示超支，不影響其他項目的可運用計算）。
+function getAccountOutstandingCommitment(accountId) {
+  return financeBudgetItems
+    .filter(b => b.account_id === accountId && b.active)
+    .reduce((sum, b) => sum + Math.max(b.planned_amount - getBudgetItemPaidAmount(b.id), 0), 0);
+}
+
+// 帳戶可運用金額 = 帳戶實際餘額 － 這個帳戶還沒付完的分配項目（見討論記錄的最終定義）。
+// 只對資產帳戶有意義，負債帳戶維持顯示欠款金額本身，不套用這套邏輯。
+function getAccountAvailable(account) {
+  if (account.category !== "asset") return account.balance;
+  return account.balance - getAccountOutstandingCommitment(account.id);
+}
+
+// 次月預覽／可運用資金：本月結存（所有資產帳戶可運用金額加總）－ 下月固定分配（monthly 週期項目加總），
+// 不需要手動輸入任何數字，純粹是既有分配資料往前推算的結果（見討論記錄的修正）。
+function computeAvailableFundsForecast() {
+  const currentClosing = financeAccounts
+    .filter(a => a.category === "asset")
+    .reduce((sum, a) => sum + getAccountAvailable(a), 0);
+
+  const nextMonthFixed = financeBudgetItems
+    .filter(b => b.cycle === "monthly" && b.active)
+    .reduce((sum, b) => sum + b.planned_amount, 0);
+
+  return {
+    currentClosing,
+    nextMonthFixed,
+    available: currentClosing - nextMonthFixed
+  };
 }
 
 async function addFinanceTxPreset(preset) {
@@ -2521,6 +2706,7 @@ async function initFinanceForUser() {
   await loadFinanceAccountsFromSupabase();
   await loadFinanceTransactionsFromSupabase();
   await loadFinanceTxPresetsFromSupabase();
+  await loadFinanceBudgetItemsFromSupabase();
   setFinanceTxDateToday();
   renderFinanceAccounts();
   refreshFinanceTxTagSuggestions();
@@ -2531,6 +2717,9 @@ function initFinanceForGuest() {
   financeAccounts = DEMO_FINANCE_ACCOUNTS.map(item => ({ ...item }));
   financeTransactions = DEMO_FINANCE_TRANSACTIONS.map(item => ({ ...item }));
   financeTxPresets = [];
+  // 訪客模式先不放示範分配項目：分配總覽是這輪新功能，示範資料的呈現效果還沒驗證過（沿用既有原則），
+  // 訪客點開分配總覽會看到空狀態，不影響其他既有示範資料的呈現。
+  financeBudgetItems = [];
   setFinanceTxDateToday();
   renderFinanceAccounts();
   refreshFinanceTxTagSuggestions();
@@ -2613,7 +2802,7 @@ async function applyTransactionBalanceChange(type, accountId, fromAccountId, toA
 
 // 送出一筆交易的核心邏輯：寫入資料庫（或訪客模式的本機陣列）+ 連動帳戶餘額 + 更新畫面。
 // 記帳表單跟快捷按鈕都呼叫這個函式，差別只在於「資料從表單讀」還是「直接帶入快捷存的值」。
-async function submitFinanceTransaction({ type, accountId, fromAccountId, toAccountId, amount, category, tag, occurredOn }) {
+async function submitFinanceTransaction({ type, accountId, fromAccountId, toAccountId, amount, category, tag, occurredOn, budgetItemId }) {
   if (currentUser) {
     const { data, error } = await supabaseClient
       .from("finance_transactions")
@@ -2626,7 +2815,8 @@ async function submitFinanceTransaction({ type, accountId, fromAccountId, toAcco
         amount,
         category,
         tag,
-        occurred_on: occurredOn
+        occurred_on: occurredOn,
+        budget_item_id: budgetItemId || null
       })
       .select()
       .single();
@@ -2646,13 +2836,14 @@ async function submitFinanceTransaction({ type, accountId, fromAccountId, toAcco
       amount: Number(data.amount),
       category: data.category,
       tag: data.tag,
-      occurred_on: data.occurred_on
+      occurred_on: data.occurred_on,
+      budget_item_id: data.budget_item_id
     });
   } else {
     financeTransactions.unshift({
       id: `demo-tx-${Date.now()}`,
       type, account_id: accountId, from_account_id: fromAccountId, to_account_id: toAccountId,
-      amount, category, tag, occurred_on: occurredOn
+      amount, category, tag, occurred_on: occurredOn, budget_item_id: budgetItemId || null
     });
   }
 
@@ -2669,6 +2860,9 @@ async function submitFinanceTransaction({ type, accountId, fromAccountId, toAcco
   renderFinanceAccounts();
   refreshFinanceTxTagSuggestions();
   refreshFinanceTxDetailModal();
+  if (financeBudgetModalOverlay && financeBudgetModalOverlay.style.display !== "none") {
+    renderFinanceBudgetModal();
+  }
   return true;
 }
 
@@ -2678,6 +2872,9 @@ async function addFinanceTransaction() {
   const occurredOn = financeTxDateInput.value || new Date().toISOString().split("T")[0];
   const category = financeTxCategoryInput.value.trim();
   const tag = financeTxTagInput.value.trim();
+  // 只有 income/expense（單一帳戶）才可能連結分配項目，轉帳不套用智慧預填/手動選擇
+  // （轉帳的性質本來就跟「這筆錢是為了某個規劃用途花掉」不同，見討論範圍）。
+  const budgetItemId = type === "transfer" ? null : (selectedFinanceTxBudgetItemId || financeTxBudgetManualSelect.value || null);
 
   if (amountRaw === "" || isNaN(Number(amountRaw)) || Number(amountRaw) <= 0) {
     alert("請輸入大於 0 的金額。");
@@ -2710,13 +2907,14 @@ async function addFinanceTransaction() {
     }
   }
 
-  const ok = await submitFinanceTransaction({ type, accountId, fromAccountId, toAccountId, amount, category, tag, occurredOn });
+  const ok = await submitFinanceTransaction({ type, accountId, fromAccountId, toAccountId, amount, category, tag, occurredOn, budgetItemId });
   if (!ok) return;
 
   financeTxAmountInput.value = "";
   financeTxCategoryInput.value = "";
   financeTxTagInput.value = "";
   setFinanceTxDateToday();
+  resetFinanceTxBudgetSuggestion();
 }
 
 async function saveFinanceTransactionEdits(id, updates) {
@@ -2838,6 +3036,98 @@ function buildFinanceTagPicker(initialValue) {
   wrap.appendChild(dropdown);
 
   return { wrap, input };
+}
+
+// ---- Phase 3：記帳表單智慧預填（規則式，不是 AI，見討論記錄的分階段決定） ----
+// 規則：同帳戶＋金額落在該分配項目應分配金額的 ±5% 內，猜這筆屬於該分配項目。
+// 猜錯或猜不到都不影響原本記帳流程，只是少了一次點擊，多選項時挑金額差距最小的那個。
+function suggestBudgetItemForAccount(accountId, amount) {
+  if (!accountId || !amount) return null;
+  const candidates = financeBudgetItems.filter(function (b) {
+    if (b.account_id !== accountId || !b.active) return false;
+    const diff = Math.abs(b.planned_amount - amount);
+    return diff <= b.planned_amount * 0.05;
+  });
+  if (candidates.length === 0) return null;
+  candidates.sort(function (a, b) {
+    return Math.abs(a.planned_amount - amount) - Math.abs(b.planned_amount - amount);
+  });
+  return candidates[0];
+}
+
+function populateFinanceTxBudgetManualSelect(accountId) {
+  if (!financeTxBudgetManualSelect) return;
+  financeTxBudgetManualSelect.innerHTML = "";
+  const noneOption = document.createElement("option");
+  noneOption.value = "";
+  noneOption.textContent = "不歸類到任何分配項目";
+  financeTxBudgetManualSelect.appendChild(noneOption);
+
+  financeBudgetItems
+    .filter(function (b) { return b.account_id === accountId && b.active; })
+    .forEach(function (b) {
+      const option = document.createElement("option");
+      option.value = b.id;
+      option.textContent = b.label;
+      financeTxBudgetManualSelect.appendChild(option);
+    });
+}
+
+function resetFinanceTxBudgetSuggestion() {
+  selectedFinanceTxBudgetItemId = null;
+  financeTxBudgetSuggestedId = null;
+  if (financeTxBudgetSuggestion) financeTxBudgetSuggestion.style.display = "none";
+  if (financeTxBudgetManualWrap) financeTxBudgetManualWrap.style.display = "none";
+}
+
+// 帳戶或金額變動時重新計算：猜到就顯示建議條，猜不到就安靜地什麼都不顯示
+// （不強迫使用者每筆都要處理分配項目，這是這個功能能不能撐住「陪伴」精神的關鍵）。
+function updateFinanceTxBudgetSuggestion() {
+  if (selectedTxType === "transfer") {
+    resetFinanceTxBudgetSuggestion();
+    return;
+  }
+  const accountId = financeTxAccountSelect.value;
+  const amount = Number(financeTxAmountInput.value);
+  populateFinanceTxBudgetManualSelect(accountId);
+
+  const match = suggestBudgetItemForAccount(accountId, amount);
+  if (!match) {
+    resetFinanceTxBudgetSuggestion();
+    return;
+  }
+
+  financeTxBudgetSuggestedId = match.id;
+  selectedFinanceTxBudgetItemId = null;
+  financeTxBudgetSuggestionLabel.textContent = `系統判斷這筆屬於「${match.label}」`;
+  const account = financeAccounts.find(function (a) { return a.id === accountId; });
+  financeTxBudgetSuggestionMeta.textContent = `${account ? account.name : ""} · $${amount.toLocaleString()}`;
+  financeTxBudgetSuggestion.style.display = "flex";
+  financeTxBudgetManualWrap.style.display = "none";
+}
+
+if (financeTxAccountSelect) financeTxAccountSelect.addEventListener("change", updateFinanceTxBudgetSuggestion);
+if (financeTxAmountInput) financeTxAmountInput.addEventListener("input", updateFinanceTxBudgetSuggestion);
+
+if (financeTxBudgetSuggestionConfirm) {
+  financeTxBudgetSuggestionConfirm.addEventListener("click", function () {
+    selectedFinanceTxBudgetItemId = financeTxBudgetSuggestedId;
+    financeTxBudgetSuggestion.style.display = "none";
+  });
+}
+
+if (financeTxBudgetSuggestionChange) {
+  financeTxBudgetSuggestionChange.addEventListener("click", function () {
+    financeTxBudgetSuggestion.style.display = "none";
+    financeTxBudgetManualWrap.style.display = "block";
+    financeTxBudgetManualSelect.value = financeTxBudgetSuggestedId || "";
+  });
+}
+
+if (financeTxBudgetManualSelect) {
+  financeTxBudgetManualSelect.addEventListener("change", function () {
+    selectedFinanceTxBudgetItemId = financeTxBudgetManualSelect.value || null;
+  });
 }
 
 // 交易就地編輯：金額打錯、備註/標籤要補充，直接改這一筆，不用刪除重打。
@@ -3199,10 +3489,12 @@ const financeTxModalClose = document.getElementById("finance-tx-modal-close");
 financeTxFab.addEventListener("click", function () {
   financeTxModalOverlay.style.display = "flex";
   applyPreferredDefaultsForCurrentType();
+  updateFinanceTxBudgetSuggestion();
 });
 
 function closeFinanceTxModal() {
   financeTxModalOverlay.style.display = "none";
+  resetFinanceTxBudgetSuggestion();
 }
 
 financeTxModalClose.addEventListener("click", closeFinanceTxModal);
@@ -3234,6 +3526,223 @@ financeTxDetailModalOverlay.addEventListener("click", function (event) {
     closeFinanceTxDetailModal();
   }
 });
+
+// 「分配總覽」：獨立彈窗，全部帳戶攤平顯示（方案B，見討論記錄——
+// 分配總覽主要在電腦作業情境使用，不用像手機那樣為了精簡而摺疊）。
+financeBudgetOpenButton.addEventListener("click", function () {
+  renderFinanceBudgetModal();
+  financeBudgetModalOverlay.style.display = "flex";
+});
+
+function closeFinanceBudgetModal() {
+  financeBudgetModalOverlay.style.display = "none";
+  financeBudgetAddSection.style.display = "none";
+  financeBudgetEditingId = null;
+}
+
+financeBudgetModalClose.addEventListener("click", closeFinanceBudgetModal);
+
+financeBudgetModalOverlay.addEventListener("click", function (event) {
+  if (event.target === financeBudgetModalOverlay) {
+    closeFinanceBudgetModal();
+  }
+});
+
+financeBudgetAddToggle.addEventListener("click", function () {
+  financeBudgetEditingId = null;
+  const isHidden = financeBudgetAddSection.style.display === "none";
+  if (isHidden) resetFinanceBudgetAddForm();
+  financeBudgetAddSection.style.display = isHidden ? "" : "none";
+});
+
+function resetFinanceBudgetAddForm() {
+  financeBudgetLabelInput.value = "";
+  financeBudgetAmountInput.value = "";
+  financeBudgetCycleSelect.value = "monthly";
+  financeBudgetTagSlot.innerHTML = "";
+  financeBudgetTagPicker = buildFinanceTagPicker("");
+  financeBudgetTagSlot.appendChild(financeBudgetTagPicker.wrap);
+
+  financeBudgetAccountSelect.innerHTML = "";
+  financeAccounts.filter(function (a) { return a.category === "asset"; }).forEach(function (a) {
+    const option = document.createElement("option");
+    option.value = a.id;
+    option.textContent = a.name;
+    financeBudgetAccountSelect.appendChild(option);
+  });
+
+  financeBudgetSaveButton.textContent = "新增";
+}
+
+financeBudgetSaveButton.addEventListener("click", async function () {
+  const accountId = financeBudgetAccountSelect.value;
+  const label = financeBudgetLabelInput.value.trim();
+  const amountRaw = financeBudgetAmountInput.value.trim();
+  const cycle = financeBudgetCycleSelect.value;
+  const tag = financeBudgetTagPicker ? financeBudgetTagPicker.input.value.trim() : "";
+
+  if (!accountId) {
+    alert("請先建立至少一個資產帳戶。");
+    return;
+  }
+  if (!label) {
+    alert("請輸入用途名稱。");
+    financeBudgetLabelInput.focus();
+    return;
+  }
+  if (amountRaw === "" || isNaN(Number(amountRaw)) || Number(amountRaw) <= 0) {
+    alert("請輸入大於 0 的應分配金額。");
+    financeBudgetAmountInput.focus();
+    return;
+  }
+  const plannedAmount = Number(amountRaw);
+
+  financeBudgetSaveButton.disabled = true;
+  let ok;
+  if (financeBudgetEditingId) {
+    ok = await updateFinanceBudgetItem(financeBudgetEditingId, {
+      account_id: accountId, label, planned_amount: plannedAmount, cycle, tag
+    });
+  } else {
+    ok = await addFinanceBudgetItem({ accountId, label, plannedAmount, cycle, tag });
+  }
+  financeBudgetSaveButton.disabled = false;
+
+  if (!ok) return;
+  financeBudgetEditingId = null;
+  financeBudgetAddSection.style.display = "none";
+  renderFinanceBudgetModal();
+  renderFinanceAccounts();
+});
+
+// 每個分配項目的「已完成／進行中／超支」狀態文字與進度條寬度，統一算在這裡，
+// 渲染跟之後其他地方要用同一套判斷邏輯時都呼叫這個，避免各處各自算一次容易兜不齊。
+function getBudgetItemProgress(item) {
+  const paid = getBudgetItemPaidAmount(item.id);
+  const ratio = item.planned_amount > 0 ? paid / item.planned_amount : 0;
+  const isOver = paid > item.planned_amount;
+  const isDone = !isOver && ratio >= 1;
+  return { paid, ratio: Math.min(ratio, 1), isOver, isDone };
+}
+
+// 分配總覽全部攤平：每個有分配項目的資產帳戶一個區塊，區塊內項目由上而下列出，
+// 不用下拉切換帳戶（決策：方案B，見討論記錄——分配總覽主要在電腦上用，一次看到全部比較重要）。
+function renderFinanceBudgetModal() {
+  const forecast = computeAvailableFundsForecast();
+  financeBudgetForecastCurrent.textContent = `$${Math.round(forecast.currentClosing).toLocaleString()}`;
+  financeBudgetForecastMonthly.textContent = `-$${Math.round(forecast.nextMonthFixed).toLocaleString()}`;
+  financeBudgetForecastAvailable.textContent = `$${Math.round(forecast.available).toLocaleString()}`;
+
+  financeBudgetList.innerHTML = "";
+
+  const accountIds = [...new Set(financeBudgetItems.map(function (b) { return b.account_id; }))];
+  if (accountIds.length === 0) {
+    financeBudgetEmpty.style.display = "";
+    return;
+  }
+  financeBudgetEmpty.style.display = "none";
+
+  accountIds.forEach(function (accountId) {
+    const account = financeAccounts.find(function (a) { return a.id === accountId; });
+    if (!account) return;
+
+    const group = document.createElement("div");
+    group.className = "finance-budget-account-group";
+
+    const header = document.createElement("div");
+    header.className = "finance-budget-account-header";
+    const headerName = document.createElement("span");
+    headerName.className = "finance-budget-account-header-name";
+    headerName.textContent = account.name;
+    const headerAvailable = document.createElement("span");
+    headerAvailable.className = "finance-budget-account-header-available";
+    headerAvailable.textContent = `可運用 $${Math.round(getAccountAvailable(account)).toLocaleString()}`;
+    header.appendChild(headerName);
+    header.appendChild(headerAvailable);
+    group.appendChild(header);
+
+    financeBudgetItems
+      .filter(function (b) { return b.account_id === accountId; })
+      .forEach(function (item) {
+        const progress = getBudgetItemProgress(item);
+
+        const row = document.createElement("div");
+        row.className = "finance-budget-item";
+
+        const topRow = document.createElement("div");
+        topRow.className = "finance-budget-item-row";
+
+        const label = document.createElement("span");
+        label.textContent = item.label;
+
+        const statusWrap = document.createElement("div");
+        statusWrap.style.display = "flex";
+        statusWrap.style.alignItems = "center";
+        statusWrap.style.gap = "8px";
+
+        const status = document.createElement("span");
+        if (progress.isOver) {
+          status.className = "finance-budget-item-status is-over";
+          status.textContent = `超支 $${Math.round(progress.paid - item.planned_amount).toLocaleString()}`;
+        } else if (progress.isDone) {
+          status.className = "finance-budget-item-status is-done";
+          status.textContent = "已完成";
+        } else {
+          status.className = "finance-budget-item-status";
+          status.textContent = `$${Math.round(progress.paid).toLocaleString()} / $${Math.round(item.planned_amount).toLocaleString()}`;
+        }
+
+        const actions = document.createElement("div");
+        actions.className = "finance-budget-item-actions";
+        const editBtn = document.createElement("button");
+        editBtn.type = "button";
+        editBtn.textContent = "編輯";
+        editBtn.addEventListener("click", function () {
+          financeBudgetEditingId = item.id;
+          resetFinanceBudgetAddForm();
+          financeBudgetAccountSelect.value = item.account_id;
+          financeBudgetLabelInput.value = item.label;
+          financeBudgetAmountInput.value = item.planned_amount;
+          financeBudgetCycleSelect.value = item.cycle;
+          financeBudgetTagPicker.input.value = item.tag || "";
+          financeBudgetSaveButton.textContent = "儲存修改";
+          financeBudgetAddSection.style.display = "";
+        });
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.type = "button";
+        deleteBtn.textContent = "刪除";
+        deleteBtn.addEventListener("click", async function () {
+          if (!window.confirm(`確定要刪除「${item.label}」這個分配項目嗎？已經記過的交易不會被刪除，只是會失去對應的分配項目。`)) return;
+          const ok = await deleteFinanceBudgetItem(item.id);
+          if (!ok) return;
+          renderFinanceBudgetModal();
+          renderFinanceAccounts();
+        });
+
+        actions.appendChild(editBtn);
+        actions.appendChild(deleteBtn);
+        statusWrap.appendChild(status);
+        statusWrap.appendChild(actions);
+
+        topRow.appendChild(label);
+        topRow.appendChild(statusWrap);
+
+        const progressBar = document.createElement("div");
+        progressBar.className = "finance-budget-progress";
+        const progressFill = document.createElement("div");
+        progressFill.className = "finance-budget-progress-fill" + (progress.isOver ? " is-over" : "");
+        progressFill.style.width = `${Math.round(progress.ratio * 100)}%`;
+        progressBar.appendChild(progressFill);
+
+        row.appendChild(topRow);
+        row.appendChild(progressBar);
+        group.appendChild(row);
+      });
+
+    financeBudgetList.appendChild(group);
+  });
+}
 
 // 新增帳戶表單預設收合（建好之後很少會再用到），點按鈕才展開/收回。
 const financeAddAccountToggle = document.getElementById("finance-add-account-toggle");
@@ -3491,16 +4000,27 @@ function buildFinanceAccountItem(account, manageMode) {
   name.className = "finance-item-name";
   name.textContent = account.name;
 
+  // 主數字顯示可運用金額（餘額－這個帳戶還沒付完的分配項目），沒有進行中分配項目時
+  // 可運用＝餘額，畫面跟改版前完全一樣；只有兩者不同時才會多顯示一顆餘額徽章（見討論記錄）。
+  const available = getAccountAvailable(account);
   const balance = document.createElement("span");
   balance.className = "finance-item-balance";
-  balance.textContent = `$${account.balance.toLocaleString()}`;
+  balance.textContent = `$${Math.round(available).toLocaleString()}`;
 
   nameRow.appendChild(name);
   nameRow.appendChild(balance);
 
   const meta = document.createElement("div");
   meta.className = "finance-item-meta";
-  meta.textContent = [account.purpose, account.account_type].filter(Boolean).join(" · ");
+  const metaText = [account.purpose, account.account_type].filter(Boolean).join(" · ");
+  meta.textContent = metaText;
+
+  if (available !== account.balance) {
+    const balanceBadge = document.createElement("span");
+    balanceBadge.className = "finance-item-balance-badge";
+    balanceBadge.textContent = `餘額 $${Math.round(account.balance).toLocaleString()}`;
+    meta.appendChild(balanceBadge);
+  }
 
   info.appendChild(nameRow);
   info.appendChild(meta);
