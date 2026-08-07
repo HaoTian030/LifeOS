@@ -2356,21 +2356,39 @@ async function deleteFinanceBudgetItem(id) {
   return true;
 }
 
-// 這筆分配項目「已經支付/完成」多少——直接加總已經關聯到這個 budget_item_id 的交易，
+// 這筆分配項目「已經支付/累積」多少——直接加總已經關聯到這個 budget_item_id 的交易，
 // 不再用 tag 文字比對（見討論記錄：同帳戶常有多個同類型但用途不同的分配，文字比對分不清楚）。
 // income 類型視為「還款/沖銷」，從已支付金額扣回去，其餘（expense/transfer）都算已支付。
-function getBudgetItemPaidAmount(budgetItemId) {
-  return financeTransactions
-    .filter(tx => tx.budget_item_id === budgetItemId)
-    .reduce((sum, tx) => sum + (tx.type === "income" ? -tx.amount : tx.amount), 0);
+//
+// cycle 決定要不要限定日期範圍：
+// - monthly（每月固定，例如房租）：只算「這個月」的交易，跨月會自動歸零重新算，
+//   這裡是修正——原本完全沒做日期篩選，等於每個月的錢會一直往上疊加，變成付第二次就永久顯示超支（我的疏漏）。
+// - once（累積儲蓄，例如紅包/週年禮物）：不限日期，把有史以來所有關聯交易全部加總，
+//   這才是「倉庫」概念——分好幾個月存，存到達標為止，不會因為換月份就被清空（見討論記錄的修正）。
+function getBudgetItemPaidAmount(item) {
+  const linked = financeTransactions.filter(tx => tx.budget_item_id === item.id);
+  const scoped = item.cycle === "monthly"
+    ? linked.filter(tx => (tx.occurred_on || "").slice(0, 7) === getCurrentYearMonth())
+    : linked;
+  return scoped.reduce((sum, tx) => sum + (tx.type === "income" ? -tx.amount : tx.amount), 0);
 }
 
-// 這個帳戶裡，還沒付完的分配項目一共欠多少（每筆分配項目算 max(應分配-已付,0)，
+function getCurrentYearMonth() {
+  return new Date().toISOString().slice(0, 7);
+}
+
+// 這個帳戶裡，還沒付完的「每月固定」型分配項目一共欠多少（每筆算 max(應分配-已付,0)，
 // 已經付超過的不會倒扣，只是在畫面上顯示超支，不影響其他項目的可運用計算）。
+//
+// 只算 cycle=monthly，不算累積儲蓄型（見討論記錄的修正）：
+// 房租這種每月固定義務，就算還沒付，也已經是「跑不掉的錢」，該先從可運用金額扣掉；
+// 但紅包這種累積儲蓄目標，還沒存到的部分只是未來的計畫、不是現在的負債，
+// 已經存入的部分本來就會反映在真實餘額裡（存入本身就是一筆交易，餘額已經變小了），
+// 不需要再額外扣一次，扣了反而會把「還沒發生的未來計畫」錯當成「現在就卡住的錢」。
 function getAccountOutstandingCommitment(accountId) {
   return financeBudgetItems
-    .filter(b => b.account_id === accountId && b.active)
-    .reduce((sum, b) => sum + Math.max(b.planned_amount - getBudgetItemPaidAmount(b.id), 0), 0);
+    .filter(b => b.account_id === accountId && b.active && b.cycle === "monthly")
+    .reduce((sum, b) => sum + Math.max(b.planned_amount - getBudgetItemPaidAmount(b), 0), 0);
 }
 
 // 帳戶可運用金額 = 帳戶實際餘額 － 這個帳戶還沒付完的分配項目（見討論記錄的最終定義）。
@@ -3622,7 +3640,7 @@ financeBudgetSaveButton.addEventListener("click", async function () {
 // 每個分配項目的「已完成／進行中／超支」狀態文字與進度條寬度，統一算在這裡，
 // 渲染跟之後其他地方要用同一套判斷邏輯時都呼叫這個，避免各處各自算一次容易兜不齊。
 function getBudgetItemProgress(item) {
-  const paid = getBudgetItemPaidAmount(item.id);
+  const paid = getBudgetItemPaidAmount(item);
   const ratio = item.planned_amount > 0 ? paid / item.planned_amount : 0;
   const isOver = paid > item.planned_amount;
   const isDone = !isOver && ratio >= 1;
