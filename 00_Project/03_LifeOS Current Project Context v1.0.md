@@ -26,6 +26,26 @@ LifeOS 已完成初步雛型，並已有部分功能投入日常使用。
 
 目前不追求快速增加功能。
 
+LifeOS（正式開發）
+Status：
+MVP 已完成
+目前持續優化
+
+InvestmentOS
+Status：
+Idea Validation
+尚未開始正式開發
+
+Current Priority
+
+* Priority 1
+
+* LifeOS
+
+* Priority 2
+
+InvestmentOS MVP
+
 ---
 
 目前 LifeOS 採用：

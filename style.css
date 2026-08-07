@@ -1649,3 +1649,30 @@ button.finance-drag-handle {
         margin-bottom: 0;
     }
 }
+
+/* 「計入本月可運用資金」開關：新增/編輯帳戶表單共用同一個樣式，
+   語意不綁定任何特定帳戶類型（不是「保單專用」開關），純粹是使用者自己決定
+   這筆錢這個月要不要算進可動用資金池（見討論記錄：投資型保單只是第一個例子）。 */
+.finance-count-in-available-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #d1d5db;
+    cursor: pointer;
+}
+
+.finance-count-in-available-label input[type="checkbox"] {
+    width: auto;
+    cursor: pointer;
+}
+
+.finance-item-excluded-badge {
+    display: inline-block;
+    background: rgba(107, 114, 128, 0.2);
+    color: #9ca3af;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    margin-left: 6px;
+}

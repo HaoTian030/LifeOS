@@ -1,4 +1,4 @@
-# AI Collaboration Charter v1.2
+# AI Collaboration Charter v1.3
 
 ## 目的
 
@@ -70,6 +70,20 @@
 * 容易理解
 
 不要只追求快速完成。
+
+---
+
+## 5.當存在多個產品時：
+
+所有產品共用 AI Collaboration Charter。
+
+各產品獨立管理：
+
+- Roadmap
+- Development Log
+- Design Decisions
+
+避免跨專案 Scope 擴張。
 
 ---
 

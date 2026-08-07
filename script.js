@@ -1870,6 +1870,7 @@ const financeCategorySelect = document.getElementById("finance-category-select")
 const financeTypeInput = document.getElementById("finance-type-input");
 const financeTypeList = document.getElementById("finance-type-list");
 const financeBalanceInput = document.getElementById("finance-balance-input");
+const financeCountInAvailableInput = document.getElementById("finance-count-in-available-input");
 const financeAddButton = document.getElementById("finance-add-button");
 const financeAssetsList = document.getElementById("finance-assets-list");
 const financeLiabilitiesList = document.getElementById("finance-liabilities-list");
@@ -2188,7 +2189,8 @@ async function loadFinanceAccountsFromSupabase() {
     category: row.category,
     account_type: row.account_type,
     balance: Number(row.balance),
-    display_order: row.display_order
+    display_order: row.display_order,
+    count_in_available: row.count_in_available
   }));
 }
 
@@ -2378,11 +2380,13 @@ function getAccountAvailable(account) {
   return account.balance - getAccountOutstandingCommitment(account.id);
 }
 
-// 次月預覽／可運用資金：本月結存（所有資產帳戶可運用金額加總）－ 下月固定分配（monthly 週期項目加總），
-// 不需要手動輸入任何數字，純粹是既有分配資料往前推算的結果（見討論記錄的修正）。
+// 次月預覽／可運用資金：本月結存（所有「計入可運用資金池」的資產帳戶可運用金額加總）－ 下月固定分配，
+// 不需要手動輸入任何數字。count_in_available 預設 true，只有使用者自己關掉的帳戶才會被排除
+//（決策：不用帳戶類型文字猜測要不要排除，因為 account_type 是自由輸入，猜不準——
+// 使用者自己決定「這筆錢這個月算不算可以動用」，例如投資型保單這種只出不進的帳戶）。
 function computeAvailableFundsForecast() {
   const currentClosing = financeAccounts
-    .filter(a => a.category === "asset")
+    .filter(a => a.category === "asset" && a.count_in_available !== false)
     .reduce((sum, a) => sum + getAccountAvailable(a), 0);
 
   const nextMonthFixed = financeBudgetItems
@@ -3770,6 +3774,10 @@ async function addFinanceAccount() {
   const category = financeCategorySelect.value;
   const accountType = financeTypeInput.value.trim();
   const balanceRaw = financeBalanceInput.value.trim();
+  // 是否算進「本月可運用資金池」（次月預覽的加總基礎）。預設打勾＝計入，
+  // 使用者自己決定要不要關掉（例如投資型保單這種只出不進的帳戶），不用系統猜測帳戶類型
+  // （見討論記錄：account_type 是自由輸入文字，用文字猜測「該不該排除」猜不準）。
+  const countInAvailable = financeCountInAvailableInput.checked;
 
   if (!name) {
     alert("請輸入帳戶名稱。");
@@ -3801,7 +3809,8 @@ async function addFinanceAccount() {
         category,
         account_type: accountType,
         balance,
-        display_order: financeAccounts.length
+        display_order: financeAccounts.length,
+        count_in_available: countInAvailable
       })
       .select()
       .single();
@@ -3819,7 +3828,8 @@ async function addFinanceAccount() {
       category: data.category,
       account_type: data.account_type,
       balance: Number(data.balance),
-      display_order: data.display_order
+      display_order: data.display_order,
+      count_in_available: data.count_in_available
     });
   } else {
     financeAccounts.push({
@@ -3829,7 +3839,8 @@ async function addFinanceAccount() {
       category,
       account_type: accountType,
       balance,
-      display_order: financeAccounts.length
+      display_order: financeAccounts.length,
+      count_in_available: countInAvailable
     });
   }
 
@@ -3837,6 +3848,7 @@ async function addFinanceAccount() {
   financePurposeInput.value = "";
   financeTypeInput.value = "";
   financeBalanceInput.value = "";
+  financeCountInAvailableInput.checked = true;
   financeAddAccountSection.style.display = "none";
   renderFinanceAccounts();
 }
@@ -3919,6 +3931,14 @@ function buildFinanceAccountEditForm(account, onCancel) {
   balanceInput.type = "number";
   balanceInput.value = account.balance;
 
+  const countInAvailableLabel = document.createElement("label");
+  countInAvailableLabel.className = "finance-count-in-available-label";
+  const countInAvailableInput = document.createElement("input");
+  countInAvailableInput.type = "checkbox";
+  countInAvailableInput.checked = account.count_in_available !== false;
+  countInAvailableLabel.appendChild(countInAvailableInput);
+  countInAvailableLabel.appendChild(document.createTextNode("計入本月可運用資金"));
+
   const saveButton = document.createElement("button");
   saveButton.textContent = "儲存";
   saveButton.addEventListener("click", function () {
@@ -3950,7 +3970,8 @@ function buildFinanceAccountEditForm(account, onCancel) {
       purpose: purposeInput.value.trim(),
       category: categorySelect.value,
       account_type: trimmedType,
-      balance: balanceRaw === "" ? 0 : Number(balanceRaw)
+      balance: balanceRaw === "" ? 0 : Number(balanceRaw),
+      count_in_available: countInAvailableInput.checked
     };
     saveFinanceAccountEdits(account.id, updates).then(function (ok) {
       if (ok) renderFinanceAccounts();
@@ -3975,6 +3996,7 @@ function buildFinanceAccountEditForm(account, onCancel) {
   form.appendChild(categorySelect);
   form.appendChild(typeInput);
   form.appendChild(balanceInput);
+  form.appendChild(countInAvailableLabel);
   form.appendChild(saveButton);
   form.appendChild(cancelButton);
 
@@ -4020,6 +4042,13 @@ function buildFinanceAccountItem(account, manageMode) {
     balanceBadge.className = "finance-item-balance-badge";
     balanceBadge.textContent = `餘額 $${Math.round(account.balance).toLocaleString()}`;
     meta.appendChild(balanceBadge);
+  }
+
+  if (account.category === "asset" && account.count_in_available === false) {
+    const excludedBadge = document.createElement("span");
+    excludedBadge.className = "finance-item-excluded-badge";
+    excludedBadge.textContent = "不計入本月結存";
+    meta.appendChild(excludedBadge);
   }
 
   info.appendChild(nameRow);
