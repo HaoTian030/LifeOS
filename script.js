@@ -2140,7 +2140,7 @@ financeTxTypeButtons.forEach(function (button) {
     financeTxTransferFields.style.display = isTransfer ? "flex" : "none";
     applyPreferredDefaultsForCurrentType();
     resetFinanceTxBudgetSuggestion();
-    if (!isTransfer) updateFinanceTxBudgetSuggestion();
+    updateFinanceTxBudgetSuggestion();
   });
 });
 
@@ -2357,6 +2357,26 @@ async function deleteFinanceBudgetItem(id) {
 
   financeBudgetItems = financeBudgetItems.filter(b => b.id !== id);
   return true;
+}
+
+// 累積儲蓄型的 accumulated_amount 只能透過這裡調整——連結交易的新增/編輯/刪除都呼叫這個函式，
+// 統一處理金額怎麼反映到累積進度上，避免各處各自加減、之後兜不起來（見討論記錄的教訓：
+// 文件寫「已同步」不代表真的有同步，這裡直接讓所有異動路徑共用同一個函式，從結構上避免這個坑）。
+// 每月固定型不會受影響（cycle !== "once" 直接跳過），那種類型的進度本來就是即時算的，不用存快取。
+async function adjustBudgetItemAccumulated(budgetItemId, delta) {
+  if (!budgetItemId || !delta) return;
+  const item = financeBudgetItems.find(b => b.id === budgetItemId);
+  if (!item || item.cycle !== "once") return;
+  const nextAmount = Math.max((item.accumulated_amount || 0) + delta, 0);
+  await updateFinanceBudgetItem(budgetItemId, { accumulated_amount: nextAmount });
+}
+
+// 分配總覽彈窗如果剛好開著，交易異動後要跟著刷新，避免顯示舊資料
+// （跟記帳明細用同一個「有開才刷新」的判斷方式）。
+function refreshFinanceBudgetModalIfOpen() {
+  if (financeBudgetModalOverlay && financeBudgetModalOverlay.style.display !== "none") {
+    renderFinanceBudgetModal();
+  }
 }
 
 // 這筆分配項目「已經支付」多少——只對 monthly（每月固定）型有意義，直接加總這個月
@@ -2883,12 +2903,15 @@ async function submitFinanceTransaction({ type, accountId, fromAccountId, toAcco
 
   await applyTransactionBalanceChange(type, accountId, fromAccountId, toAccountId, amount, 1);
 
+  // 這筆交易如果連結到累積儲蓄型項目，代表這是一筆「存入」的錢（收入/轉入該帳戶），
+  // 要把累積進度加上去，不用你事後再去分配總覽補記一次「存入」
+  // （見討論記錄：土地銀行轉玉山銀行後想直接歸類，不想被迫多開一個彈窗重打一次金額）。
+  await adjustBudgetItemAccumulated(budgetItemId, amount);
+
   renderFinanceAccounts();
   refreshFinanceTxTagSuggestions();
   refreshFinanceTxDetailModal();
-  if (financeBudgetModalOverlay && financeBudgetModalOverlay.style.display !== "none") {
-    renderFinanceBudgetModal();
-  }
+  refreshFinanceBudgetModalIfOpen();
   return true;
 }
 
@@ -2898,9 +2921,11 @@ async function addFinanceTransaction() {
   const occurredOn = financeTxDateInput.value || new Date().toISOString().split("T")[0];
   const category = financeTxCategoryInput.value.trim();
   const tag = financeTxTagInput.value.trim();
-  // 只有 income/expense（單一帳戶）才可能連結分配項目，轉帳不套用智慧預填/手動選擇
-  // （轉帳的性質本來就跟「這筆錢是為了某個規劃用途花掉」不同，見討論範圍）。
-  const budgetItemId = type === "transfer" ? null : (selectedFinanceTxBudgetItemId || financeTxBudgetManualSelect.value || null);
+  // 支出可能連結「每月固定」型分配項目（付房租）；收入／轉帳可能連結「累積儲蓄」型
+  // （存入紅包基金）——兩種方向不同，但都可能有連結，這裡統一交給
+  // updateFinanceTxBudgetSuggestion() 依當下的類型去判斷該offer哪一種（見討論記錄的修正，
+  // 原本轉帳整個被排除在外，但轉帳存入才是使用者實際想要連動的主要情境）。
+  const budgetItemId = selectedFinanceTxBudgetItemId || (financeTxBudgetManualSelect.value || null);
 
   if (amountRaw === "" || isNaN(Number(amountRaw)) || Number(amountRaw) <= 0) {
     alert("請輸入大於 0 的金額。");
@@ -2979,10 +3004,17 @@ async function deleteFinanceTransaction(id) {
 
   await applyTransactionBalanceChange(tx.type, tx.account_id, tx.from_account_id, tx.to_account_id, tx.amount, -1);
 
+  // 刪除的交易如果連結到累積儲蓄型項目，要把當初加上去的金額扣回來，
+  // 不然刪掉一筆存入紀錄之後，累積進度會留著「幽靈金額」，跟真實存入的錢對不上。
+  if (tx.budget_item_id) {
+    await adjustBudgetItemAccumulated(tx.budget_item_id, -tx.amount);
+  }
+
   financeTransactions = financeTransactions.filter(t => t.id !== id);
   renderFinanceAccounts();
   refreshFinanceTxTagSuggestions();
   refreshFinanceTxDetailModal();
+  refreshFinanceBudgetModalIfOpen();
 }
 
 function getFinanceAccountName(id) {
@@ -3068,24 +3100,50 @@ function buildFinanceTagPicker(initialValue) {
 // 規則：同帳戶＋金額落在該分配項目應分配金額的 ±5% 內，猜這筆屬於該分配項目。
 // 猜錯或猜不到都不影響原本記帳流程，只是少了一次點擊，多選項時挑金額差距最小的那個。
 //
-// 只考慮 cycle=monthly 的項目：累積儲蓄型（如紅包）改用分配總覽的「存入」動作處理，
-// 那個動作不產生交易、不影響帳戶餘額，本來就不會走這個記帳表單（見討論記錄的修正——
-// 存入累積儲蓄型的錢實際上沒有離開帳戶，記一筆交易反而會讓餘額跟銀行 App 對不起來）。
-function suggestBudgetItemForAccount(accountId, amount) {
-  if (!accountId || !amount) return null;
-  const candidates = financeBudgetItems.filter(function (b) {
-    if (b.account_id !== accountId || !b.active || b.cycle !== "monthly") return false;
-    const diff = Math.abs(b.planned_amount - amount);
-    return diff <= b.planned_amount * 0.05;
-  });
-  if (candidates.length === 0) return null;
-  candidates.sort(function (a, b) {
-    return Math.abs(a.planned_amount - amount) - Math.abs(b.planned_amount - amount);
-  });
-  return candidates[0];
+// 依目前選的交易類型，決定要跟哪個帳戶、哪種週期的分配項目做比對：
+// - 支出：錢從 financeTxAccountSelect 這個帳戶流出，比對「每月固定」型（付房租）
+// - 收入：錢流進 financeTxAccountSelect 這個帳戶，比對「累積儲蓄」型（獎金直接存進紅包基金）
+// - 轉帳：錢流進 financeTxToSelect（轉入帳戶），比對「累積儲蓄」型
+//   （見討論記錄：土地銀行轉玉山銀行後想直接歸類到玉山銀行的紅包項目，這是主要情境）
+function getFinanceTxBudgetContext() {
+  if (selectedTxType === "expense") {
+    return { accountId: financeTxAccountSelect.value, cycle: "monthly" };
+  }
+  if (selectedTxType === "income") {
+    return { accountId: financeTxAccountSelect.value, cycle: "once" };
+  }
+  if (selectedTxType === "transfer") {
+    return { accountId: financeTxToSelect.value, cycle: "once" };
+  }
+  return { accountId: null, cycle: null };
 }
 
-function populateFinanceTxBudgetManualSelect(accountId) {
+// 每月固定型：金額落在應分配金額 ±5% 內才猜（房租這種金額固定的類型，金額比對很準）。
+// 累積儲蓄型：存入金額每次可能都不一樣（這個月存 1700、下個月可能存 2000），金額比對沒有意義，
+// 改成「這個帳戶目前只有一個進行中的累積儲蓄項目」才主動建議，有兩個以上就不猜、交給手動選，
+// 避免把要存紅包的錢誤猜成存到儲蓄目標（見討論記錄：不能因為猜得快就犧牲猜得準）。
+function suggestBudgetItemForAccount(accountId, amount, cycle) {
+  if (!accountId || !cycle) return null;
+  const candidates = financeBudgetItems.filter(function (b) {
+    return b.account_id === accountId && b.active && b.cycle === cycle;
+  });
+
+  if (cycle === "monthly") {
+    if (!amount) return null;
+    const matched = candidates.filter(function (b) {
+      return Math.abs(b.planned_amount - amount) <= b.planned_amount * 0.05;
+    });
+    if (matched.length === 0) return null;
+    matched.sort(function (a, b) {
+      return Math.abs(a.planned_amount - amount) - Math.abs(b.planned_amount - amount);
+    });
+    return matched[0];
+  }
+
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
+function populateFinanceTxBudgetManualSelect(accountId, cycle) {
   if (!financeTxBudgetManualSelect) return;
   financeTxBudgetManualSelect.innerHTML = "";
   const noneOption = document.createElement("option");
@@ -3094,7 +3152,7 @@ function populateFinanceTxBudgetManualSelect(accountId) {
   financeTxBudgetManualSelect.appendChild(noneOption);
 
   financeBudgetItems
-    .filter(function (b) { return b.account_id === accountId && b.active && b.cycle === "monthly"; })
+    .filter(function (b) { return b.account_id === accountId && b.active && b.cycle === cycle; })
     .forEach(function (b) {
       const option = document.createElement("option");
       option.value = b.id;
@@ -3113,15 +3171,15 @@ function resetFinanceTxBudgetSuggestion() {
 // 帳戶或金額變動時重新計算：猜到就顯示建議條，猜不到就安靜地什麼都不顯示
 // （不強迫使用者每筆都要處理分配項目，這是這個功能能不能撐住「陪伴」精神的關鍵）。
 function updateFinanceTxBudgetSuggestion() {
-  if (selectedTxType === "transfer") {
+  const context = getFinanceTxBudgetContext();
+  if (!context.accountId) {
     resetFinanceTxBudgetSuggestion();
     return;
   }
-  const accountId = financeTxAccountSelect.value;
   const amount = Number(financeTxAmountInput.value);
-  populateFinanceTxBudgetManualSelect(accountId);
+  populateFinanceTxBudgetManualSelect(context.accountId, context.cycle);
 
-  const match = suggestBudgetItemForAccount(accountId, amount);
+  const match = suggestBudgetItemForAccount(context.accountId, amount, context.cycle);
   if (!match) {
     resetFinanceTxBudgetSuggestion();
     return;
@@ -3129,14 +3187,18 @@ function updateFinanceTxBudgetSuggestion() {
 
   financeTxBudgetSuggestedId = match.id;
   selectedFinanceTxBudgetItemId = null;
-  financeTxBudgetSuggestionLabel.textContent = `系統判斷這筆屬於「${match.label}」`;
-  const account = financeAccounts.find(function (a) { return a.id === accountId; });
+  financeTxBudgetSuggestionLabel.textContent = context.cycle === "monthly"
+    ? `系統判斷這筆屬於「${match.label}」`
+    : `系統判斷這筆要存入「${match.label}」`;
+  const account = financeAccounts.find(function (a) { return a.id === context.accountId; });
   financeTxBudgetSuggestionMeta.textContent = `${account ? account.name : ""} · $${amount.toLocaleString()}`;
   financeTxBudgetSuggestion.style.display = "flex";
   financeTxBudgetManualWrap.style.display = "none";
 }
 
-if (financeTxAccountSelect) financeTxAccountSelect.addEventListener("change", updateFinanceTxBudgetSuggestion);
+[financeTxAccountSelect, financeTxToSelect].forEach(function (el) {
+  if (el) el.addEventListener("change", updateFinanceTxBudgetSuggestion);
+});
 if (financeTxAmountInput) financeTxAmountInput.addEventListener("input", updateFinanceTxBudgetSuggestion);
 
 if (financeTxBudgetSuggestionConfirm) {
@@ -3201,6 +3263,9 @@ function buildFinanceTransactionEditForm(tx, onCancel) {
     }
 
     const newAmount = Number(amountRaw);
+    const oldAmount = tx.amount; // 一定要在 saveFinanceTransactionEdits 之前先記下來——
+    // 那個函式會直接 Object.assign 改掉這個 tx 物件本身（同一個參照），呼叫完 tx.amount 已經是新值，
+    // 太晚抓的話差額會算成 0，累積進度就不會同步（這是我寫的時候一開始沒注意到的地雷）。
     const newOccurredOn = dateInput.value;
     const newCategory = categoryInput.value.trim();
     const newTag = tagInput.value.trim();
@@ -3227,9 +3292,16 @@ function buildFinanceTransactionEditForm(tx, onCancel) {
       return;
     }
 
+    // 這筆交易如果連結到累積儲蓄型項目，金額改了，累積進度也要跟著調整差額，
+    // 不然「金額打錯改一改」會讓累積進度跟真實存入金額脫鉤（見討論記錄：這正是這輪要修的問題）。
+    if (tx.budget_item_id) {
+      await adjustBudgetItemAccumulated(tx.budget_item_id, newAmount - oldAmount);
+    }
+
     renderFinanceAccounts();
     refreshFinanceTxTagSuggestions();
     refreshFinanceTxDetailModal();
+    refreshFinanceBudgetModalIfOpen();
   });
 
   const cancelButton = document.createElement("button");
