@@ -3179,9 +3179,26 @@ function updateFinanceTxBudgetSuggestion() {
   const amount = Number(financeTxAmountInput.value);
   populateFinanceTxBudgetManualSelect(context.accountId, context.cycle);
 
+  // 這個帳戶底下有沒有相關週期的分配項目——不管系統猜不猜得出來，只要有候選，
+  // 一定要讓你連得到手動選單。原本的漏洞是：猜不出來就整個藏起來，
+  // 而手動選單的唯一入口是建議條上的按鈕，等於猜不出來就完全打不開手動選單
+  // （這正是玉山銀行有兩個以上累積儲蓄項目時完全沒反應的原因，不是快取或部署問題）。
+  const hasCandidates = financeBudgetItems.some(function (b) {
+    return b.account_id === context.accountId && b.active && b.cycle === context.cycle;
+  });
+  if (!hasCandidates) {
+    resetFinanceTxBudgetSuggestion();
+    return;
+  }
+
   const match = suggestBudgetItemForAccount(context.accountId, amount, context.cycle);
   if (!match) {
-    resetFinanceTxBudgetSuggestion();
+    // 猜不出來（候選不只一個，或每月固定型金額對不上）：直接打開手動選單讓你自己選，
+    // 不要整個藏起來卡死。
+    financeTxBudgetSuggestedId = null;
+    financeTxBudgetSuggestion.style.display = "none";
+    financeTxBudgetManualWrap.style.display = "block";
+    financeTxBudgetManualSelect.value = "";
     return;
   }
 
