@@ -1936,9 +1936,6 @@ let selectedFinanceTxBudgetItemId = null; // 記帳表單當下選定/確認的�
 const financeBudgetOpenButton = document.getElementById("finance-budget-open-button");
 const financeBudgetModalOverlay = document.getElementById("finance-budget-modal-overlay");
 const financeBudgetModalClose = document.getElementById("finance-budget-modal-close");
-const financeBudgetForecastCurrent = document.getElementById("finance-budget-forecast-current");
-const financeBudgetForecastMonthly = document.getElementById("finance-budget-forecast-monthly");
-const financeBudgetForecastAvailable = document.getElementById("finance-budget-forecast-available");
 const financeBudgetAddToggle = document.getElementById("finance-budget-add-toggle");
 const financeBudgetAddSection = document.getElementById("finance-budget-add-section");
 const financeBudgetAccountSelect = document.getElementById("finance-budget-account-select");
@@ -1951,6 +1948,18 @@ const financeBudgetEmpty = document.getElementById("finance-budget-empty");
 const financeBudgetList = document.getElementById("finance-budget-list");
 let financeBudgetTagPicker = null;
 let financeBudgetEditingId = null; // 目前正在編輯的分配項目 id，null 代表是「新增」模式
+
+// 主畫面的可運用資金摘要標籤：平常收合不佔畫面，點一下才展開看三個數字
+// （見討論記錄：分配總覽彈窗拆掉之後，這組摘要數字要找地方安置，決定收成隱藏式標籤）。
+const financeForecastToggle = document.getElementById("finance-forecast-toggle");
+const financeForecastPanel = document.getElementById("finance-forecast-panel");
+const financeForecastCurrent = document.getElementById("finance-forecast-current");
+const financeForecastMonthly = document.getElementById("finance-forecast-monthly");
+const financeForecastAvailable = document.getElementById("finance-forecast-available");
+
+// 主畫面帳戶卡片的展開狀態：記在這個集合裡，renderFinanceAccounts() 每次重畫都會照著這個集合
+// 決定哪些卡片要保持展開，避免每次資料一有異動重新渲染，使用者展開的卡片又全部收回去。
+const expandedFinanceAccountIds = new Set();
 
 const financeTxBudgetSuggestion = document.getElementById("finance-tx-budget-suggestion");
 const financeTxBudgetSuggestionLabel = document.getElementById("finance-tx-budget-suggestion-label");
@@ -3399,6 +3408,88 @@ function buildFinanceTransactionItem(tx) {
   return item;
 }
 
+// 主畫面帳戶卡片展開後的內容：只做「看進度、存入」，新增/編輯/刪除/歸零這種不常用的操作
+// 留在 🎯 管理分配項目彈窗（見討論記錄的分工決定：這裡負責日常快速查看跟操作，
+// 彈窗負責調整規劃結構，兩邊不重複維護同一組按鈕）。
+function buildFinanceAccountBudgetPanel(account, items) {
+  const panel = document.createElement("div");
+  panel.className = "finance-item-budget-panel";
+
+  items.forEach(function (budgetItem) {
+    const progress = getBudgetItemProgress(budgetItem);
+
+    const row = document.createElement("div");
+    row.className = "finance-budget-item";
+
+    const topRow = document.createElement("div");
+    topRow.className = "finance-budget-item-row";
+
+    const label = document.createElement("span");
+    label.textContent = budgetItem.label;
+
+    const statusWrap = document.createElement("div");
+    statusWrap.style.display = "flex";
+    statusWrap.style.alignItems = "center";
+    statusWrap.style.gap = "8px";
+
+    const status = document.createElement("span");
+    if (progress.isOver) {
+      if (budgetItem.cycle === "monthly") {
+        status.className = "finance-budget-item-status is-over";
+        status.textContent = `超支 $${Math.round(progress.paid - budgetItem.planned_amount).toLocaleString()}`;
+      } else {
+        status.className = "finance-budget-item-status is-done";
+        status.textContent = `已存超過目標 $${Math.round(progress.paid - budgetItem.planned_amount).toLocaleString()}`;
+      }
+    } else if (progress.isDone) {
+      status.className = "finance-budget-item-status is-done";
+      status.textContent = "已完成";
+    } else {
+      status.className = "finance-budget-item-status";
+      status.textContent = `$${Math.round(progress.paid).toLocaleString()} / $${Math.round(budgetItem.planned_amount).toLocaleString()}`;
+    }
+    statusWrap.appendChild(status);
+
+    if (budgetItem.cycle !== "monthly") {
+      const depositBtn = document.createElement("button");
+      depositBtn.type = "button";
+      depositBtn.textContent = "存入";
+      depositBtn.addEventListener("click", async function () {
+        const raw = window.prompt(`要存入多少到「${budgetItem.label}」？（要更正可以輸入負數）`, "");
+        if (raw === null) return;
+        const delta = Number(raw);
+        if (isNaN(delta) || delta === 0) {
+          alert("請輸入不是 0 的數字。");
+          return;
+        }
+        const nextAmount = Math.max((budgetItem.accumulated_amount || 0) + delta, 0);
+        if (!window.confirm(`目前累積 $${Math.round(budgetItem.accumulated_amount || 0).toLocaleString()}，加上這筆後會變成 $${Math.round(nextAmount).toLocaleString()}，確定嗎？`)) return;
+        const ok = await updateFinanceBudgetItem(budgetItem.id, { accumulated_amount: nextAmount });
+        if (!ok) return;
+        expandedFinanceAccountIds.add(account.id); // 存完之後重畫整個畫面，這裡確保這張卡片還是展開的
+        renderFinanceAccounts();
+      });
+      statusWrap.appendChild(depositBtn);
+    }
+
+    topRow.appendChild(label);
+    topRow.appendChild(statusWrap);
+
+    const progressBar = document.createElement("div");
+    progressBar.className = "finance-budget-progress";
+    const progressFill = document.createElement("div");
+    progressFill.className = "finance-budget-progress-fill" + (progress.isOver && budgetItem.cycle === "monthly" ? " is-over" : "");
+    progressFill.style.width = `${Math.round(progress.ratio * 100)}%`;
+    progressBar.appendChild(progressFill);
+
+    row.appendChild(topRow);
+    row.appendChild(progressBar);
+    panel.appendChild(row);
+  });
+
+  return panel;
+}
+
 // ---- 記帳明細（獨立彈窗，含月份/標籤篩選） ----
 // 決策（本輪交接）：快速記帳彈窗只留表單，明細是另一個獨立彈窗，
 // 因為記帳要求「快」，明細是復盤才會查看，兩者混在一起會顯得雜亂。
@@ -3667,6 +3758,25 @@ financeBudgetModalOverlay.addEventListener("click", function (event) {
   }
 });
 
+// 可運用資金摘要：平常收合，點一下展開，再點一下收回去。數字本身在 renderFinanceAccounts()
+// 裡就會同步更新，這裡只負責顯示/隱藏的開關（見討論記錄：拆掉分配總覽彈窗之後，
+// 這組數字要找地方安置，決定做成不佔畫面空間的收合標籤）。
+if (financeForecastToggle) {
+  financeForecastToggle.addEventListener("click", function () {
+    const isHidden = financeForecastPanel.style.display === "none";
+    financeForecastPanel.style.display = isHidden ? "block" : "none";
+    financeForecastToggle.classList.toggle("is-open", isHidden);
+  });
+}
+
+function refreshFinanceForecastPanel() {
+  if (!financeForecastCurrent) return;
+  const forecast = computeAvailableFundsForecast();
+  financeForecastCurrent.textContent = `$${Math.round(forecast.currentClosing).toLocaleString()}`;
+  financeForecastMonthly.textContent = `-$${Math.round(forecast.nextMonthFixed).toLocaleString()}`;
+  financeForecastAvailable.textContent = `$${Math.round(forecast.available).toLocaleString()}`;
+}
+
 financeBudgetAddToggle.addEventListener("click", function () {
   financeBudgetEditingId = null;
   const isHidden = financeBudgetAddSection.style.display === "none";
@@ -3746,12 +3856,11 @@ function getBudgetItemProgress(item) {
 
 // 分配總覽全部攤平：每個有分配項目的資產帳戶一個區塊，區塊內項目由上而下列出，
 // 不用下拉切換帳戶（決策：方案B，見討論記錄——分配總覽主要在電腦上用，一次看到全部比較重要）。
+// 分配總覽彈窗現在只負責「調整規劃結構」（新增/編輯/刪除/歸零），全部帳戶攤平顯示
+// （方案B，見討論記錄——分配總覽主要在電腦作業情境使用）。日常查看進度、快速存入
+// 已經搬到資產總覽主畫面的帳戶卡片展開區（見 buildFinanceAccountBudgetPanel），
+// 這裡不重複顯示進度條，避免兩個地方要維護同一組畫面、之後改一邊忘了改另一邊。
 function renderFinanceBudgetModal() {
-  const forecast = computeAvailableFundsForecast();
-  financeBudgetForecastCurrent.textContent = `$${Math.round(forecast.currentClosing).toLocaleString()}`;
-  financeBudgetForecastMonthly.textContent = `-$${Math.round(forecast.nextMonthFixed).toLocaleString()}`;
-  financeBudgetForecastAvailable.textContent = `$${Math.round(forecast.available).toLocaleString()}`;
-
   financeBudgetList.innerHTML = "";
 
   const accountIds = [...new Set(financeBudgetItems.map(function (b) { return b.account_id; }))];
@@ -3773,18 +3882,12 @@ function renderFinanceBudgetModal() {
     const headerName = document.createElement("span");
     headerName.className = "finance-budget-account-header-name";
     headerName.textContent = account.name;
-    const headerAvailable = document.createElement("span");
-    headerAvailable.className = "finance-budget-account-header-available";
-    headerAvailable.textContent = `可運用 $${Math.round(getAccountAvailable(account)).toLocaleString()}`;
     header.appendChild(headerName);
-    header.appendChild(headerAvailable);
     group.appendChild(header);
 
     financeBudgetItems
       .filter(function (b) { return b.account_id === accountId; })
       .forEach(function (item) {
-        const progress = getBudgetItemProgress(item);
-
         const row = document.createElement("div");
         row.className = "finance-budget-item";
 
@@ -3794,55 +3897,25 @@ function renderFinanceBudgetModal() {
         const label = document.createElement("span");
         label.textContent = item.label;
 
-        const statusWrap = document.createElement("div");
-        statusWrap.style.display = "flex";
-        statusWrap.style.alignItems = "center";
-        statusWrap.style.gap = "8px";
-
-        const status = document.createElement("span");
-        if (progress.isOver) {
-          if (item.cycle === "monthly") {
-            status.className = "finance-budget-item-status is-over";
-            status.textContent = `超支 $${Math.round(progress.paid - item.planned_amount).toLocaleString()}`;
-          } else {
-            // 累積儲蓄型存超過目標是好事，不套用「超支」這種警示用語跟紅色動畫
-            // （見討論記錄：年度目標存多了不是問題，跟房租花超過是完全不同的性質）。
-            status.className = "finance-budget-item-status is-done";
-            status.textContent = `已存超過目標 $${Math.round(progress.paid - item.planned_amount).toLocaleString()}`;
-          }
-        } else if (progress.isDone) {
-          status.className = "finance-budget-item-status is-done";
-          status.textContent = "已完成";
-        } else {
-          status.className = "finance-budget-item-status";
-          status.textContent = `$${Math.round(progress.paid).toLocaleString()} / $${Math.round(item.planned_amount).toLocaleString()}`;
-        }
+        const meta = document.createElement("span");
+        meta.className = "finance-budget-item-status";
+        meta.textContent = `目標 $${Math.round(item.planned_amount).toLocaleString()} · ${item.cycle === "monthly" ? "每月固定" : "累積儲蓄"}`;
 
         const actions = document.createElement("div");
         actions.className = "finance-budget-item-actions";
 
         if (item.cycle !== "monthly") {
-          // 累積儲蓄型專用的「存入」動作：只更新 accumulated_amount，完全不產生交易、
-          // 不影響帳戶餘額、不會出現在記帳明細（見討論記錄——錢沒有真的離開帳戶，
-          // 只是心裡劃定用途，記一筆交易反而會讓餘額跟銀行 App 對不起來）。
-          const depositBtn = document.createElement("button");
-          depositBtn.type = "button";
-          depositBtn.textContent = "存入";
-          depositBtn.addEventListener("click", async function () {
-            const raw = window.prompt(`要存入多少到「${item.label}」？（要更正可以輸入負數）`, "");
-            if (raw === null) return;
-            const delta = Number(raw);
-            if (isNaN(delta) || delta === 0) {
-              alert("請輸入不是 0 的數字。");
-              return;
-            }
-            const nextAmount = Math.max((item.accumulated_amount || 0) + delta, 0);
-            const ok = await updateFinanceBudgetItem(item.id, { accumulated_amount: nextAmount });
+          const resetBtn = document.createElement("button");
+          resetBtn.type = "button";
+          resetBtn.textContent = "歸零";
+          resetBtn.addEventListener("click", async function () {
+            if (!window.confirm(`確定要把「${item.label}」的累積進度歸零嗎？（目前是 $${Math.round(item.accumulated_amount || 0).toLocaleString()}）`)) return;
+            const ok = await updateFinanceBudgetItem(item.id, { accumulated_amount: 0 });
             if (!ok) return;
             renderFinanceBudgetModal();
             renderFinanceAccounts();
           });
-          actions.appendChild(depositBtn);
+          actions.appendChild(resetBtn);
         }
 
         const editBtn = document.createElement("button");
@@ -3873,21 +3946,12 @@ function renderFinanceBudgetModal() {
 
         actions.appendChild(editBtn);
         actions.appendChild(deleteBtn);
-        statusWrap.appendChild(status);
-        statusWrap.appendChild(actions);
 
         topRow.appendChild(label);
-        topRow.appendChild(statusWrap);
-
-        const progressBar = document.createElement("div");
-        progressBar.className = "finance-budget-progress";
-        const progressFill = document.createElement("div");
-        progressFill.className = "finance-budget-progress-fill" + (progress.isOver && item.cycle === "monthly" ? " is-over" : "");
-        progressFill.style.width = `${Math.round(progress.ratio * 100)}%`;
-        progressBar.appendChild(progressFill);
+        topRow.appendChild(meta);
 
         row.appendChild(topRow);
-        row.appendChild(progressBar);
+        row.appendChild(actions);
         group.appendChild(row);
       });
 
@@ -4203,6 +4267,35 @@ function buildFinanceAccountItem(account, manageMode) {
 
   item.appendChild(info);
 
+  // 只有資產帳戶、且底下有進行中分配項目時，才需要展開/收合這個機制——
+  // 沒有分配項目的帳戶完全不受影響，畫面跟改版前一樣（見討論記錄的一貫原則）。
+  const accountBudgetItems = financeBudgetItems.filter(function (b) {
+    return b.account_id === account.id && b.active;
+  });
+
+  if (account.category === "asset" && accountBudgetItems.length > 0) {
+    const isExpanded = expandedFinanceAccountIds.has(account.id);
+
+    const toggleButton = document.createElement("button");
+    toggleButton.type = "button";
+    toggleButton.className = "finance-item-expand-toggle" + (isExpanded ? " is-open" : "");
+    toggleButton.textContent = "▾";
+    toggleButton.setAttribute("aria-label", "展開分配項目");
+    nameRow.appendChild(toggleButton);
+
+    const panel = buildFinanceAccountBudgetPanel(account, accountBudgetItems);
+    panel.style.display = isExpanded ? "block" : "none";
+    item.appendChild(panel);
+
+    toggleButton.addEventListener("click", function () {
+      const nowExpanded = panel.style.display === "none";
+      panel.style.display = nowExpanded ? "block" : "none";
+      toggleButton.classList.toggle("is-open", nowExpanded);
+      if (nowExpanded) expandedFinanceAccountIds.add(account.id);
+      else expandedFinanceAccountIds.delete(account.id);
+    });
+  }
+
   if (manageMode) {
     const actions = document.createElement("div");
     actions.className = "finance-item-actions";
@@ -4456,6 +4549,7 @@ function renderFinanceAccounts() {
   financeNetWorthText.innerText = `淨資產：$${financeNetWorth.toLocaleString()}`;
 
   updatePlayerPanel();
+  refreshFinanceForecastPanel();
 }
 
 financeAddButton.addEventListener("click", addFinanceAccount);

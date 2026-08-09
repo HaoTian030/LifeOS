@@ -1676,3 +1676,93 @@ button.finance-drag-handle {
     border-radius: 6px;
     margin-left: 6px;
 }
+
+/* ============ 財務 Phase 3 收合版面（放檔案最後） ============ */
+
+/* 可運用資金摘要標籤：平常收合、不佔畫面空間，點一下展開三個數字
+   （見討論記錄：分配總覽彈窗拆掉之後，這組摘要數字改成不常駐畫面的收合標籤）。 */
+.finance-forecast-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #111827;
+    border: 1px solid #374151;
+    color: #d1d5db;
+    font-size: 13px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    margin: 10px 0;
+}
+
+.finance-forecast-toggle-caret {
+    font-size: 11px;
+    transition: transform 0.15s ease;
+}
+
+.finance-forecast-toggle.is-open .finance-forecast-toggle-caret {
+    transform: rotate(180deg);
+}
+
+.finance-forecast-panel {
+    background: #111827;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+}
+
+/* 帳戶卡片展開/收合切換鈕：只有資產帳戶、且底下有進行中分配項目時才會出現
+   （沒有分配項目的帳戶完全不受影響，畫面跟改版前一樣）。 */
+.finance-item-expand-toggle {
+    background: none;
+    border: none;
+    color: #6b7280;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 2px 4px;
+    margin-left: 4px;
+    transition: transform 0.15s ease;
+}
+
+.finance-item-expand-toggle.is-open {
+    transform: rotate(180deg);
+}
+
+/* 帳戶卡片展開後的內嵌分配項目面板：只做「看進度、存入」，
+   跟 🎯 管理分配項目彈窗的角色分工（那邊負責新增/編輯/刪除）。 */
+.finance-item-budget-panel {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #374151;
+}
+
+.finance-item-budget-panel .finance-budget-item {
+    margin-bottom: 10px;
+}
+
+.finance-item-budget-panel .finance-budget-item:last-child {
+    margin-bottom: 0;
+}
+
+.finance-item-budget-panel .finance-budget-item-status button {
+    background: none;
+    border: 1px solid #374151;
+    color: #9ca3af;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-left: 6px;
+}
+
+/* 🎯 管理分配項目彈窗：現在只負責結構調整，不再顯示進度條，
+   每個項目改成單行文字＋操作按鈕，比原本的進度條版面更輕量。 */
+.finance-budget-modal-hint {
+    font-size: 12px;
+    color: #6b7280;
+    margin: -4px 0 12px;
+}
+
+.finance-budget-account-group .finance-budget-item-row {
+    align-items: center;
+}

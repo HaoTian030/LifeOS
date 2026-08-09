@@ -161,7 +161,7 @@
             <div class="finance-card-header">
                 <h2>💰 資產總覽</h2>
                 <div class="finance-card-header-actions">
-                    <button id="finance-budget-open-button" type="button" class="finance-icon-button" title="分配總覽" aria-label="分配總覽">🎯</button>
+                    <button id="finance-budget-open-button" type="button" class="finance-icon-button" title="管理分配項目" aria-label="管理分配項目">🎯</button>
                     <button id="finance-tx-detail-open-button" type="button" class="finance-icon-button" title="查看記帳明細" aria-label="查看記帳明細">📜</button>
                     <button id="finance-add-account-toggle" type="button" class="finance-icon-button" title="新增帳戶" aria-label="新增帳戶">➕</button>
                     <button id="finance-accounts-manage-toggle" type="button" class="finance-icon-button" title="管理帳戶" aria-label="管理帳戶">🔧</button>
@@ -172,6 +172,24 @@
                 <p id="finance-total-assets">總資產：$0</p>
                 <p id="finance-total-liabilities">總負債：$0</p>
                 <p id="finance-net-worth">淨資產：$0</p>
+            </div>
+
+            <button id="finance-forecast-toggle" type="button" class="finance-forecast-toggle">
+                💰 可運用資金 <span class="finance-forecast-toggle-caret">▾</span>
+            </button>
+            <div id="finance-forecast-panel" class="finance-forecast-panel" style="display:none;">
+                <div class="finance-budget-forecast-row">
+                    <span>本月結存</span>
+                    <span id="finance-forecast-current">$0</span>
+                </div>
+                <div class="finance-budget-forecast-row">
+                    <span>下月固定分配</span>
+                    <span id="finance-forecast-monthly">-$0</span>
+                </div>
+                <div class="finance-budget-forecast-row finance-budget-forecast-total">
+                    <span>可自由運用資金</span>
+                    <span id="finance-forecast-available">$0</span>
+                </div>
             </div>
 
             <div class="finance-input-row" id="finance-add-account-section" style="display:none;">
@@ -362,24 +380,10 @@
     <div id="finance-budget-modal-overlay" class="modal-overlay" style="display:none;">
         <div class="modal-box modal-box-wide">
             <div class="modal-header">
-                <h2>🎯 分配總覽</h2>
+                <h2>🎯 管理分配項目</h2>
                 <button id="finance-budget-modal-close" type="button">✕</button>
             </div>
-
-            <div class="finance-budget-forecast">
-                <div class="finance-budget-forecast-row">
-                    <span>本月結存</span>
-                    <span id="finance-budget-forecast-current">$0</span>
-                </div>
-                <div class="finance-budget-forecast-row">
-                    <span>下月固定分配</span>
-                    <span id="finance-budget-forecast-monthly">-$0</span>
-                </div>
-                <div class="finance-budget-forecast-row finance-budget-forecast-total">
-                    <span>可自由運用資金</span>
-                    <span id="finance-budget-forecast-available">$0</span>
-                </div>
-            </div>
+            <p class="finance-budget-modal-hint">新增、編輯、刪除分配項目在這裡處理；日常看進度／存入，直接在資產總覽點開帳戶卡片就好，不用開這個視窗。</p>
 
             <button id="finance-budget-add-toggle" type="button" class="finance-budget-add-toggle">＋ 新增分配項目</button>
 
