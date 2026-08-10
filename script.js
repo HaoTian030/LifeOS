@@ -4223,6 +4223,12 @@ function buildFinanceAccountItem(account, manageMode) {
   item.className = "finance-item";
   item.dataset.accountId = account.id;
 
+  // 「名稱＋餘額＋操作」要包成獨立一列橫向排列，跟展開面板分開，
+  // 不然面板會被塞進同一個 flex row 當第三個子元素，把帳戶名稱擠到只剩一條窄縫，
+  // 中文名稱會逐字換行（這是上一輪版面亂掉的直接原因，見討論記錄的修正）。
+  const rowWrap = document.createElement("div");
+  rowWrap.className = "finance-item-row";
+
   const info = document.createElement("div");
   info.className = "finance-item-info";
 
@@ -4265,7 +4271,7 @@ function buildFinanceAccountItem(account, manageMode) {
   info.appendChild(nameRow);
   info.appendChild(meta);
 
-  item.appendChild(info);
+  rowWrap.appendChild(info);
 
   // 只有資產帳戶、且底下有進行中分配項目時，才需要展開/收合這個機制——
   // 沒有分配項目的帳戶完全不受影響，畫面跟改版前一樣（見討論記錄的一貫原則）。
@@ -4273,6 +4279,7 @@ function buildFinanceAccountItem(account, manageMode) {
     return b.account_id === account.id && b.active;
   });
 
+  let panel = null;
   if (account.category === "asset" && accountBudgetItems.length > 0) {
     const isExpanded = expandedFinanceAccountIds.has(account.id);
 
@@ -4283,9 +4290,8 @@ function buildFinanceAccountItem(account, manageMode) {
     toggleButton.setAttribute("aria-label", "展開分配項目");
     nameRow.appendChild(toggleButton);
 
-    const panel = buildFinanceAccountBudgetPanel(account, accountBudgetItems);
+    panel = buildFinanceAccountBudgetPanel(account, accountBudgetItems);
     panel.style.display = isExpanded ? "block" : "none";
-    item.appendChild(panel);
 
     toggleButton.addEventListener("click", function () {
       const nowExpanded = panel.style.display === "none";
@@ -4326,8 +4332,11 @@ function buildFinanceAccountItem(account, manageMode) {
     actions.appendChild(dragHandle);
     actions.appendChild(editButton);
     actions.appendChild(deleteButton);
-    item.appendChild(actions);
+    rowWrap.appendChild(actions);
   }
+
+  item.appendChild(rowWrap);
+  if (panel) item.appendChild(panel);
 
   return item;
 }

@@ -619,13 +619,16 @@ h1{
 }
 
 .finance-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
     margin-bottom: 8px;
     background: #111827;
     border-radius: 8px;
     padding: 8px 12px;
+}
+
+.finance-item-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 .finance-item-info {
@@ -720,6 +723,9 @@ button.finance-drag-handle {
 }
 
 .finance-item-editing {
+    display: flex;
+    align-items: center;
+    gap: 10px;
     flex-wrap: wrap;
 }
 
@@ -1191,7 +1197,7 @@ button.finance-drag-handle {
    放在檔案中段很容易被後面新增的其他樣式意外蓋掉（先前就發生過一次）。
    放在檔案最後，之後不管中間新增什麼樣式都不會再被蓋掉。 */
 @media (max-width: 480px) {
-    .finance-item {
+    .finance-item-row {
         flex-wrap: wrap;
         row-gap: 8px;
     }
