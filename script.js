@@ -3464,8 +3464,10 @@ function buildFinanceAccountBudgetPanel(account, items) {
           alert("請輸入不是 0 的數字。");
           return;
         }
+        // 原本這裡有一個「確定嗎？」的二次確認，實測後發現存款是高頻動作，
+        // 每次都要多按一次確認反而很煩，拿掉了——防呆改靠「歸零」按鈕（在管理分配項目
+        // 彈窗裡）跟輸入負數修正，兩個都還在，打錯了還是有辦法修（見討論記錄的取捨）。
         const nextAmount = Math.max((budgetItem.accumulated_amount || 0) + delta, 0);
-        if (!window.confirm(`目前累積 $${Math.round(budgetItem.accumulated_amount || 0).toLocaleString()}，加上這筆後會變成 $${Math.round(nextAmount).toLocaleString()}，確定嗎？`)) return;
         const ok = await updateFinanceBudgetItem(budgetItem.id, { accumulated_amount: nextAmount });
         if (!ok) return;
         expandedFinanceAccountIds.add(account.id); // 存完之後重畫整個畫面，這裡確保這張卡片還是展開的
@@ -3875,6 +3877,97 @@ function getBudgetItemProgress(item) {
 // （方案B，見討論記錄——分配總覽主要在電腦作業情境使用）。日常查看進度、快速存入
 // 已經搬到資產總覽主畫面的帳戶卡片展開區（見 buildFinanceAccountBudgetPanel），
 // 這裡不重複顯示進度條，避免兩個地方要維護同一組畫面、之後改一邊忘了改另一邊。
+// 建立單一帳戶的分配項目區塊（管理彈窗用）：帳戶名稱 + 底下每個項目的目標/週期 + 編輯/刪除/歸零。
+// 抽成獨立函式是因為 renderFinanceBudgetModal 現在要在「桌面兩欄」跟「手機單欄」兩種情況下
+// 重複呼叫這個建構邏輯，不想維護兩份幾乎一樣的程式碼。
+function buildBudgetAccountGroupElement(account, items) {
+  const group = document.createElement("div");
+  group.className = "finance-budget-account-group";
+
+  const header = document.createElement("div");
+  header.className = "finance-budget-account-header";
+  const headerName = document.createElement("span");
+  headerName.className = "finance-budget-account-header-name";
+  headerName.textContent = account.name;
+  header.appendChild(headerName);
+  group.appendChild(header);
+
+  items.forEach(function (item) {
+    const row = document.createElement("div");
+    row.className = "finance-budget-item";
+
+    const topRow = document.createElement("div");
+    topRow.className = "finance-budget-item-row";
+
+    const label = document.createElement("span");
+    label.textContent = item.label;
+
+    const meta = document.createElement("span");
+    meta.className = "finance-budget-item-status";
+    meta.textContent = `目標 $${Math.round(item.planned_amount).toLocaleString()} · ${item.cycle === "monthly" ? "每月固定" : "累積儲蓄"}`;
+
+    const actions = document.createElement("div");
+    actions.className = "finance-budget-item-actions";
+
+    if (item.cycle !== "monthly") {
+      const resetBtn = document.createElement("button");
+      resetBtn.type = "button";
+      resetBtn.textContent = "歸零";
+      resetBtn.addEventListener("click", async function () {
+        if (!window.confirm(`確定要把「${item.label}」的累積進度歸零嗎？（目前是 $${Math.round(item.accumulated_amount || 0).toLocaleString()}）`)) return;
+        const ok = await updateFinanceBudgetItem(item.id, { accumulated_amount: 0 });
+        if (!ok) return;
+        renderFinanceBudgetModal();
+        renderFinanceAccounts();
+      });
+      actions.appendChild(resetBtn);
+    }
+
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.textContent = "編輯";
+    editBtn.addEventListener("click", function () {
+      financeBudgetEditingId = item.id;
+      resetFinanceBudgetAddForm();
+      financeBudgetAccountSelect.value = item.account_id;
+      financeBudgetLabelInput.value = item.label;
+      financeBudgetAmountInput.value = item.planned_amount;
+      financeBudgetCycleSelect.value = item.cycle;
+      financeBudgetTagPicker.input.value = item.tag || "";
+      financeBudgetSaveButton.textContent = "儲存修改";
+      financeBudgetAddSection.style.display = "";
+    });
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.textContent = "刪除";
+    deleteBtn.addEventListener("click", async function () {
+      if (!window.confirm(`確定要刪除「${item.label}」這個分配項目嗎？已經記過的交易不會被刪除，只是會失去對應的分配項目。`)) return;
+      const ok = await deleteFinanceBudgetItem(item.id);
+      if (!ok) return;
+      renderFinanceBudgetModal();
+      renderFinanceAccounts();
+    });
+
+    actions.appendChild(editBtn);
+    actions.appendChild(deleteBtn);
+
+    topRow.appendChild(label);
+    topRow.appendChild(meta);
+
+    row.appendChild(topRow);
+    row.appendChild(actions);
+    group.appendChild(row);
+  });
+
+  return group;
+}
+
+// 分配彈窗排版：桌面版曾經試過 CSS Grid（固定兩欄，高度對不齊會留空白）跟 CSS 多欄流排版
+// （遇到不能換行的長文字會撐開欄寬，導致整個容器要橫向捲動），兩個都有實際的副作用。
+// 改成用程式邏輯動態平衡：依照每欄目前已經放了多少「分配項目數」，新帳戶固定放進項目數
+// 較少的那一欄——欄寬是固定的（不會橫向溢出），內容量也會自動找比較短的欄補齊
+// （不會有大塊空白），見討論記錄的修正。手機螢幕維持單欄，不套用這套分欄邏輯。
 function renderFinanceBudgetModal() {
   financeBudgetList.innerHTML = "";
 
@@ -3885,93 +3978,44 @@ function renderFinanceBudgetModal() {
   }
   financeBudgetEmpty.style.display = "none";
 
-  accountIds.forEach(function (accountId) {
-    const account = financeAccounts.find(function (a) { return a.id === accountId; });
-    if (!account) return;
+  const groups = accountIds
+    .map(function (accountId) {
+      const account = financeAccounts.find(function (a) { return a.id === accountId; });
+      const items = financeBudgetItems.filter(function (b) { return b.account_id === accountId; });
+      return { account: account, items: items };
+    })
+    .filter(function (g) { return g.account; });
 
-    const group = document.createElement("div");
-    group.className = "finance-budget-account-group";
+  if (window.innerWidth < 768) {
+    groups.forEach(function (g) {
+      financeBudgetList.appendChild(buildBudgetAccountGroupElement(g.account, g.items));
+    });
+    return;
+  }
 
-    const header = document.createElement("div");
-    header.className = "finance-budget-account-header";
-    const headerName = document.createElement("span");
-    headerName.className = "finance-budget-account-header-name";
-    headerName.textContent = account.name;
-    header.appendChild(headerName);
-    group.appendChild(header);
+  const columnsWrap = document.createElement("div");
+  columnsWrap.className = "finance-budget-columns";
+  const columnLeft = document.createElement("div");
+  columnLeft.className = "finance-budget-column";
+  const columnRight = document.createElement("div");
+  columnRight.className = "finance-budget-column";
+  columnsWrap.appendChild(columnLeft);
+  columnsWrap.appendChild(columnRight);
 
-    financeBudgetItems
-      .filter(function (b) { return b.account_id === accountId; })
-      .forEach(function (item) {
-        const row = document.createElement("div");
-        row.className = "finance-budget-item";
-
-        const topRow = document.createElement("div");
-        topRow.className = "finance-budget-item-row";
-
-        const label = document.createElement("span");
-        label.textContent = item.label;
-
-        const meta = document.createElement("span");
-        meta.className = "finance-budget-item-status";
-        meta.textContent = `目標 $${Math.round(item.planned_amount).toLocaleString()} · ${item.cycle === "monthly" ? "每月固定" : "累積儲蓄"}`;
-
-        const actions = document.createElement("div");
-        actions.className = "finance-budget-item-actions";
-
-        if (item.cycle !== "monthly") {
-          const resetBtn = document.createElement("button");
-          resetBtn.type = "button";
-          resetBtn.textContent = "歸零";
-          resetBtn.addEventListener("click", async function () {
-            if (!window.confirm(`確定要把「${item.label}」的累積進度歸零嗎？（目前是 $${Math.round(item.accumulated_amount || 0).toLocaleString()}）`)) return;
-            const ok = await updateFinanceBudgetItem(item.id, { accumulated_amount: 0 });
-            if (!ok) return;
-            renderFinanceBudgetModal();
-            renderFinanceAccounts();
-          });
-          actions.appendChild(resetBtn);
-        }
-
-        const editBtn = document.createElement("button");
-        editBtn.type = "button";
-        editBtn.textContent = "編輯";
-        editBtn.addEventListener("click", function () {
-          financeBudgetEditingId = item.id;
-          resetFinanceBudgetAddForm();
-          financeBudgetAccountSelect.value = item.account_id;
-          financeBudgetLabelInput.value = item.label;
-          financeBudgetAmountInput.value = item.planned_amount;
-          financeBudgetCycleSelect.value = item.cycle;
-          financeBudgetTagPicker.input.value = item.tag || "";
-          financeBudgetSaveButton.textContent = "儲存修改";
-          financeBudgetAddSection.style.display = "";
-        });
-
-        const deleteBtn = document.createElement("button");
-        deleteBtn.type = "button";
-        deleteBtn.textContent = "刪除";
-        deleteBtn.addEventListener("click", async function () {
-          if (!window.confirm(`確定要刪除「${item.label}」這個分配項目嗎？已經記過的交易不會被刪除，只是會失去對應的分配項目。`)) return;
-          const ok = await deleteFinanceBudgetItem(item.id);
-          if (!ok) return;
-          renderFinanceBudgetModal();
-          renderFinanceAccounts();
-        });
-
-        actions.appendChild(editBtn);
-        actions.appendChild(deleteBtn);
-
-        topRow.appendChild(label);
-        topRow.appendChild(meta);
-
-        row.appendChild(topRow);
-        row.appendChild(actions);
-        group.appendChild(row);
-      });
-
-    financeBudgetList.appendChild(group);
+  let leftCount = 0;
+  let rightCount = 0;
+  groups.forEach(function (g) {
+    const el = buildBudgetAccountGroupElement(g.account, g.items);
+    if (leftCount <= rightCount) {
+      columnLeft.appendChild(el);
+      leftCount += g.items.length;
+    } else {
+      columnRight.appendChild(el);
+      rightCount += g.items.length;
+    }
   });
+
+  financeBudgetList.appendChild(columnsWrap);
 }
 
 // 新增帳戶表單預設收合（建好之後很少會再用到），點按鈕才展開/收回。
