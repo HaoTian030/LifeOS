@@ -1701,6 +1701,16 @@ button.finance-drag-handle {
     margin: 10px 0;
 }
 
+.finance-forecast-toggle.is-warning {
+    border-color: #f87171;
+    color: #fca5a5;
+    animation: financeBudgetOverPulse 1.4s ease-in-out infinite;
+}
+
+.finance-forecast-toggle-amount {
+    font-weight: 700;
+}
+
 .finance-forecast-toggle-caret {
     font-size: 11px;
     transition: transform 0.15s ease;
@@ -1719,14 +1729,23 @@ button.finance-drag-handle {
 
 /* 帳戶卡片展開/收合：不用獨立按鈕（那顆小方塊跟沒有分配項目的帳戶長得不一樣，
    視覺上很突兀），改成整個名稱區塊可以直接點擊，只靠游標樣式跟滑過變色當提示，
-   跟沒有分配項目的帳戶卡片維持一致的外觀（見討論記錄的修正）。 */
+   跟沒有分配項目的帳戶卡片維持一致的外觀（見討論記錄的修正）。
+   桌面版測試後發現原本的變色太淡不明顯，這裡加大對比度＋加上邊框（見討論記錄）。 */
 .finance-item-info-expandable {
     cursor: pointer;
     border-radius: 6px;
-    transition: background 0.15s ease;
+    padding: 6px 8px;
+    margin: -6px -8px;
+    border: 1px solid transparent;
+    transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .finance-item-info-expandable:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.16);
+}
+
+.finance-item-info-expandable.is-open {
     background: rgba(255, 255, 255, 0.04);
 }
 

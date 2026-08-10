@@ -1956,6 +1956,7 @@ const financeForecastPanel = document.getElementById("finance-forecast-panel");
 const financeForecastCurrent = document.getElementById("finance-forecast-current");
 const financeForecastMonthly = document.getElementById("finance-forecast-monthly");
 const financeForecastAvailable = document.getElementById("finance-forecast-available");
+const financeForecastToggleAmount = document.getElementById("finance-forecast-toggle-amount");
 
 // 主畫面帳戶卡片的展開狀態：記在這個集合裡，renderFinanceAccounts() 每次重畫都會照著這個集合
 // 決定哪些卡片要保持展開，避免每次資料一有異動重新渲染，使用者展開的卡片又全部收回去。
@@ -3775,6 +3776,16 @@ function refreshFinanceForecastPanel() {
   financeForecastCurrent.textContent = `$${Math.round(forecast.currentClosing).toLocaleString()}`;
   financeForecastMonthly.textContent = `-$${Math.round(forecast.nextMonthFixed).toLocaleString()}`;
   financeForecastAvailable.textContent = `$${Math.round(forecast.available).toLocaleString()}`;
+
+  // 可運用資金是負數時，收合標籤本身要有明顯警示，不用點開才知道透支了
+  // （見討論記錄：這是使用者測試後主動要求的，之前先記在待辦，這裡補上）。
+  const isNegative = forecast.available < 0;
+  financeForecastToggle.classList.toggle("is-warning", isNegative);
+  if (financeForecastToggleAmount) {
+    financeForecastToggleAmount.textContent = isNegative
+      ? `-$${Math.round(Math.abs(forecast.available)).toLocaleString()} ⚠️ `
+      : "";
+  }
 }
 
 financeBudgetAddToggle.addEventListener("click", function () {
