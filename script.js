@@ -4283,20 +4283,18 @@ function buildFinanceAccountItem(account, manageMode) {
   if (account.category === "asset" && accountBudgetItems.length > 0) {
     const isExpanded = expandedFinanceAccountIds.has(account.id);
 
-    const toggleButton = document.createElement("button");
-    toggleButton.type = "button";
-    toggleButton.className = "finance-item-expand-toggle" + (isExpanded ? " is-open" : "");
-    toggleButton.textContent = "▾";
-    toggleButton.setAttribute("aria-label", "展開分配項目");
-    nameRow.appendChild(toggleButton);
-
     panel = buildFinanceAccountBudgetPanel(account, accountBudgetItems);
     panel.style.display = isExpanded ? "block" : "none";
 
-    toggleButton.addEventListener("click", function () {
+    // 拿掉獨立的展開/收合按鈕（那個小方塊按鈕跟沒有分配項目的帳戶長得不一樣，
+    // 視覺上很突兀），改成整個名稱區塊可以直接點擊展開，跟其他帳戶卡片看起來一致
+    // （見討論記錄的修正）。
+    info.classList.add("finance-item-info-expandable");
+    if (isExpanded) info.classList.add("is-open");
+    info.addEventListener("click", function () {
       const nowExpanded = panel.style.display === "none";
       panel.style.display = nowExpanded ? "block" : "none";
-      toggleButton.classList.toggle("is-open", nowExpanded);
+      info.classList.toggle("is-open", nowExpanded);
       if (nowExpanded) expandedFinanceAccountIds.add(account.id);
       else expandedFinanceAccountIds.delete(account.id);
     });

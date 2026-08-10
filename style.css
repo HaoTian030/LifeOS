@@ -1717,21 +1717,17 @@ button.finance-drag-handle {
     margin-bottom: 12px;
 }
 
-/* 帳戶卡片展開/收合切換鈕：只有資產帳戶、且底下有進行中分配項目時才會出現
-   （沒有分配項目的帳戶完全不受影響，畫面跟改版前一樣）。 */
-.finance-item-expand-toggle {
-    background: none;
-    border: none;
-    color: #6b7280;
-    font-size: 12px;
+/* 帳戶卡片展開/收合：不用獨立按鈕（那顆小方塊跟沒有分配項目的帳戶長得不一樣，
+   視覺上很突兀），改成整個名稱區塊可以直接點擊，只靠游標樣式跟滑過變色當提示，
+   跟沒有分配項目的帳戶卡片維持一致的外觀（見討論記錄的修正）。 */
+.finance-item-info-expandable {
     cursor: pointer;
-    padding: 2px 4px;
-    margin-left: 4px;
-    transition: transform 0.15s ease;
+    border-radius: 6px;
+    transition: background 0.15s ease;
 }
 
-.finance-item-expand-toggle.is-open {
-    transform: rotate(180deg);
+.finance-item-info-expandable:hover {
+    background: rgba(255, 255, 255, 0.04);
 }
 
 /* 帳戶卡片展開後的內嵌分配項目面板：只做「看進度、存入」，
