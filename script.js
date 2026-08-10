@@ -1957,6 +1957,7 @@ const financeForecastCurrent = document.getElementById("finance-forecast-current
 const financeForecastMonthly = document.getElementById("finance-forecast-monthly");
 const financeForecastAvailable = document.getElementById("finance-forecast-available");
 const financeForecastToggleAmount = document.getElementById("finance-forecast-toggle-amount");
+const financeForecastToggleWarningIcon = document.getElementById("finance-forecast-toggle-warning-icon");
 
 // 主畫面帳戶卡片的展開狀態：記在這個集合裡，renderFinanceAccounts() 每次重畫都會照著這個集合
 // 決定哪些卡片要保持展開，避免每次資料一有異動重新渲染，使用者展開的卡片又全部收回去。
@@ -3783,8 +3784,11 @@ function refreshFinanceForecastPanel() {
   financeForecastToggle.classList.toggle("is-warning", isNegative);
   if (financeForecastToggleAmount) {
     financeForecastToggleAmount.textContent = isNegative
-      ? `-$${Math.round(Math.abs(forecast.available)).toLocaleString()} ⚠️ `
+      ? `-$${Math.round(Math.abs(forecast.available)).toLocaleString()}`
       : "";
+  }
+  if (financeForecastToggleWarningIcon) {
+    financeForecastToggleWarningIcon.style.display = isNegative ? "inline-flex" : "none";
   }
 }
 

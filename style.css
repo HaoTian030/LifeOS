@@ -1641,18 +1641,22 @@ button.finance-drag-handle {
 }
 
 @media (min-width: 768px) {
-    /* 分配總覽主要在電腦上用（決策：方案B全攤平＋沿用既有多欄模式），
-       帳戶區塊並排兩欄顯示，滑動距離自然變短；手機維持單欄，
-       跟資產總覽帳戶清單套用同一套斷點與邏輯，不另外發明新規則。 */
+    /* 分配總覽主要在電腦上用（決策：方案B全攤平＋沿用既有多欄模式），手機維持單欄。
+       改用 CSS 多欄流排版（column-count）取代固定 2 欄 Grid：
+       Grid 是「兩欄各自往下疊」，欄位高度對不齊就會留空白，而且帳戶底下項目數量
+       之後還會一直變動，若用手動排序來解決，每次異動後都要重新調整，很快就是麻煩事。
+       多欄流排版會自動把內容往最短的那一欄補齊，不用手動處理，之後也不用再管
+       （見討論記錄的修正）。 */
     #finance-budget-list {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 12px;
-        align-items: start;
+        column-count: 2;
+        column-gap: 12px;
     }
 
     .finance-budget-account-group {
-        margin-bottom: 0;
+        margin-bottom: 12px;
+        break-inside: avoid;
+        display: inline-block;
+        width: 100%;
     }
 }
 
@@ -1695,10 +1699,22 @@ button.finance-drag-handle {
     border: 1px solid #374151;
     color: #d1d5db;
     font-size: 13px;
+    line-height: 1;
     padding: 6px 12px;
     border-radius: 8px;
     cursor: pointer;
     margin: 10px 0;
+}
+
+.finance-forecast-toggle span {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+}
+
+.finance-forecast-toggle-icon,
+.finance-forecast-toggle-warning-icon {
+    font-size: 13px;
 }
 
 .finance-forecast-toggle.is-warning {
@@ -1728,25 +1744,28 @@ button.finance-drag-handle {
 }
 
 /* 帳戶卡片展開/收合：不用獨立按鈕（那顆小方塊跟沒有分配項目的帳戶長得不一樣，
-   視覺上很突兀），改成整個名稱區塊可以直接點擊，只靠游標樣式跟滑過變色當提示，
-   跟沒有分配項目的帳戶卡片維持一致的外觀（見討論記錄的修正）。
-   桌面版測試後發現原本的變色太淡不明顯，這裡加大對比度＋加上邊框（見討論記錄）。 */
+   視覺上很突兀），改成整個名稱區塊可以直接點擊。桌面版測試後兩輪回饋都覺得
+   純變色太淡不明顯，這裡改成立體浮起的觸感——陰影＋輕微上浮位移，
+   比單純變色更接近「這是一個可以按的東西」的直覺（見討論記錄）。 */
 .finance-item-info-expandable {
     cursor: pointer;
     border-radius: 6px;
     padding: 6px 8px;
     margin: -6px -8px;
     border: 1px solid transparent;
-    transition: background 0.15s ease, border-color 0.15s ease;
+    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .finance-item-info-expandable:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.16);
+    background: #1f2937;
+    border-color: #374151;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+    transform: translateY(-1px);
 }
 
 .finance-item-info-expandable.is-open {
-    background: rgba(255, 255, 255, 0.04);
+    background: #1f2937;
+    border-color: #374151;
 }
 
 /* 帳戶卡片展開後的內嵌分配項目面板：只做「看進度、存入」，
