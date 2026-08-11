@@ -647,6 +647,12 @@ h1{
     font-weight: 600;
 }
 
+.finance-item-balance-group {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
 .finance-item-meta {
     font-size: 12px;
     color: #9ca3af;
@@ -1766,12 +1772,40 @@ button.finance-drag-handle {
     box-shadow: 0 0 10px rgba(34, 197, 94, 0.2);
 }
 
-/* 帳戶卡片展開後的內嵌分配項目面板：只做「看進度、存入」，
-   跟 🎯 管理分配項目彈窗的角色分工（那邊負責新增/編輯/刪除）。 */
-.finance-item-budget-panel {
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid #374151;
+/* 帳戶卡片展開後的分配項目面板：只做「看進度、存入」，
+   跟 🎯 管理分配項目彈窗的角色分工（那邊負責新增/編輯/刪除）。
+   改成浮動彈出（見討論記錄）：原本用「往下推開」會把同一列其他卡片的格高撐開、
+   留下空白，讓人分心；改成絕對定位浮出，完全不佔用版面高度，展開哪個都不會
+   影響其他卡片。手機版寬度有限，改回原地往下展開（見下面 max-width:480px 那段），
+   浮動彈出在窄螢幕上容易超出畫面或蓋住整個畫面，佔優勢的場景主要是桌面。 */
+.finance-item-has-panel {
+    position: relative;
+}
+
+.finance-item-budget-panel-floating {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 6px;
+    background: #1f2937;
+    border: 1px solid #374151;
+    border-radius: 10px;
+    padding: 12px;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+    z-index: 20;
+}
+
+@media (max-width: 480px) {
+    .finance-item-budget-panel-floating {
+        position: static;
+        margin-top: 10px;
+        padding: 10px 0 0;
+        border: none;
+        border-top: 1px solid #374151;
+        border-radius: 0;
+        box-shadow: none;
+    }
 }
 
 .finance-item-budget-panel .finance-budget-item {
@@ -1791,6 +1825,10 @@ button.finance-drag-handle {
     border-radius: 6px;
     cursor: pointer;
     margin-left: 6px;
+}
+
+.finance-item-budget-panel-floating .finance-budget-item-row {
+    flex-wrap: wrap;
 }
 
 /* 🎯 管理分配項目彈窗：現在只負責結構調整，不再顯示進度條，

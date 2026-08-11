@@ -1962,6 +1962,22 @@ const financeForecastToggleWarningIcon = document.getElementById("finance-foreca
 // 主畫面帳戶卡片的展開狀態：記在這個集合裡，renderFinanceAccounts() 每次重畫都會照著這個集合
 // 決定哪些卡片要保持展開，避免每次資料一有異動重新渲染，使用者展開的卡片又全部收回去。
 const expandedFinanceAccountIds = new Set();
+// 目前展開中的浮動分配面板（同時間只允許一個），存 panel/info/accountId 三個參照，
+// 方便點別的帳戶或點外部空白處時，能直接關掉這個而不用整批重畫。
+let currentlyOpenFinanceBudgetPanel = null;
+
+// 點擊浮動面板以外的任何地方，自動收合——跳出式視窗的標準行為，
+// 不用另外找地方放「關閉」按鈕（見討論記錄：改成浮動彈出之後才需要這個機制，
+// 原本「往下推開」的做法本來就一直顯示在原地，不需要點外部關閉）。
+document.addEventListener("click", function (event) {
+  if (!currentlyOpenFinanceBudgetPanel) return;
+  const { panel, info } = currentlyOpenFinanceBudgetPanel;
+  if (panel.contains(event.target) || info.contains(event.target)) return;
+  panel.style.display = "none";
+  info.classList.remove("is-open");
+  expandedFinanceAccountIds.delete(currentlyOpenFinanceBudgetPanel.accountId);
+  currentlyOpenFinanceBudgetPanel = null;
+});
 
 const financeTxBudgetSuggestion = document.getElementById("finance-tx-budget-suggestion");
 const financeTxBudgetSuggestionLabel = document.getElementById("finance-tx-budget-suggestion-label");
@@ -4305,20 +4321,28 @@ function buildFinanceAccountItem(account, manageMode) {
   balance.className = "finance-item-balance";
   balance.textContent = `$${Math.round(available).toLocaleString()}`;
 
-  nameRow.appendChild(name);
-  nameRow.appendChild(balance);
-
-  const meta = document.createElement("div");
-  meta.className = "finance-item-meta";
-  const metaText = [account.purpose, account.account_type].filter(Boolean).join(" · ");
-  meta.textContent = metaText;
+  // 餘額徽章放在主數字「左邊」、同一列（方案B）：這樣主數字永遠固定在整列最右側，
+  // 不管這張卡片有沒有徽章，整排帳戶卡片的數字都會對齊在同一個位置——
+  // 如果徽章放右邊，有徽章的卡片最右側會變成徽章、沒徽章的卡片最右側才是數字，對不齊
+  // （見討論記錄：使用者指出這個問題，改成這個排法後主數字位置永遠一致）。
+  const balanceGroup = document.createElement("div");
+  balanceGroup.className = "finance-item-balance-group";
 
   if (available !== account.balance) {
     const balanceBadge = document.createElement("span");
     balanceBadge.className = "finance-item-balance-badge";
     balanceBadge.textContent = `餘額 $${Math.round(account.balance).toLocaleString()}`;
-    meta.appendChild(balanceBadge);
+    balanceGroup.appendChild(balanceBadge);
   }
+  balanceGroup.appendChild(balance);
+
+  nameRow.appendChild(name);
+  nameRow.appendChild(balanceGroup);
+
+  const meta = document.createElement("div");
+  meta.className = "finance-item-meta";
+  const metaText = [account.purpose, account.account_type].filter(Boolean).join(" · ");
+  meta.textContent = metaText;
 
   if (account.category === "asset" && account.count_in_available === false) {
     const excludedBadge = document.createElement("span");
@@ -4343,19 +4367,40 @@ function buildFinanceAccountItem(account, manageMode) {
     const isExpanded = expandedFinanceAccountIds.has(account.id);
 
     panel = buildFinanceAccountBudgetPanel(account, accountBudgetItems);
+    panel.classList.add("finance-item-budget-panel-floating");
     panel.style.display = isExpanded ? "block" : "none";
+    item.classList.add("finance-item-has-panel");
 
-    // 拿掉獨立的展開/收合按鈕（那個小方塊按鈕跟沒有分配項目的帳戶長得不一樣，
-    // 視覺上很突兀），改成整個名稱區塊可以直接點擊展開，跟其他帳戶卡片看起來一致
-    // （見討論記錄的修正）。
+    // 拿掉獨立的展開/收合按鈕，改成整個名稱區塊可以直接點擊展開。
+    // 面板改成浮動彈出（見討論記錄：原本用「往下推開」的方式會把同一列的其他卡片
+    // 撐高、留下空白，使用者反而會一直被那塊空白分心；改成浮動彈出完全不影響
+    // 版面高度，代價是短暫可能蓋住下面的卡片，使用者確認這個取捨可以接受）。
+    // 同時間只允許展開一個帳戶——開新的會自動收掉舊的，避免好幾個浮動視窗同時疊在畫面上。
     info.classList.add("finance-item-info-expandable");
-    if (isExpanded) info.classList.add("is-open");
-    info.addEventListener("click", function () {
+    if (isExpanded) {
+      info.classList.add("is-open");
+      currentlyOpenFinanceBudgetPanel = { panel: panel, info: info, accountId: account.id };
+    }
+
+    info.addEventListener("click", function (event) {
+      event.stopPropagation();
       const nowExpanded = panel.style.display === "none";
+
+      if (currentlyOpenFinanceBudgetPanel && currentlyOpenFinanceBudgetPanel.accountId !== account.id) {
+        currentlyOpenFinanceBudgetPanel.panel.style.display = "none";
+        currentlyOpenFinanceBudgetPanel.info.classList.remove("is-open");
+        expandedFinanceAccountIds.delete(currentlyOpenFinanceBudgetPanel.accountId);
+      }
+
       panel.style.display = nowExpanded ? "block" : "none";
       info.classList.toggle("is-open", nowExpanded);
-      if (nowExpanded) expandedFinanceAccountIds.add(account.id);
-      else expandedFinanceAccountIds.delete(account.id);
+      if (nowExpanded) {
+        expandedFinanceAccountIds.add(account.id);
+        currentlyOpenFinanceBudgetPanel = { panel: panel, info: info, accountId: account.id };
+      } else {
+        expandedFinanceAccountIds.delete(account.id);
+        currentlyOpenFinanceBudgetPanel = null;
+      }
     });
   }
 
