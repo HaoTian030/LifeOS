@@ -3956,12 +3956,6 @@ function buildBudgetAccountGroupElement(account, items) {
     const label = document.createElement("span");
     label.textContent = item.label;
 
-    const labelWrap = document.createElement("div");
-    labelWrap.className = "finance-budget-item-label-wrap";
-    labelWrap.appendChild(label);
-    const dueBadge = buildFinanceBudgetDueDateBadge(item.next_due_date);
-    if (dueBadge) labelWrap.appendChild(dueBadge);
-
     const meta = document.createElement("span");
     meta.className = "finance-budget-item-status";
     meta.textContent = `目標 $${Math.round(item.planned_amount).toLocaleString()} · ${item.cycle === "monthly" ? "每月固定" : "累積儲蓄"}`;
@@ -4013,7 +4007,7 @@ function buildBudgetAccountGroupElement(account, items) {
     actions.appendChild(editBtn);
     actions.appendChild(deleteBtn);
 
-    topRow.appendChild(labelWrap);
+    topRow.appendChild(label);
     topRow.appendChild(meta);
 
     row.appendChild(topRow);
