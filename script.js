@@ -1944,6 +1944,7 @@ const financeBudgetAmountInput = document.getElementById("finance-budget-amount-
 const financeBudgetTagSlot = document.getElementById("finance-budget-tag-slot");
 const financeBudgetCycleSelect = document.getElementById("finance-budget-cycle-select");
 const financeBudgetDueDateInput = document.getElementById("finance-budget-due-date-input");
+const financeBudgetFrequencySelect = document.getElementById("finance-budget-frequency-select");
 const financeBudgetSaveButton = document.getElementById("finance-budget-save-button");
 const financeBudgetEmpty = document.getElementById("finance-budget-empty");
 const financeBudgetList = document.getElementById("finance-budget-list");
@@ -2303,7 +2304,9 @@ async function loadFinanceBudgetItemsFromSupabase() {
     cycle: row.cycle,
     active: row.active,
     accumulated_amount: Number(row.accumulated_amount || 0),
-    next_due_date: row.next_due_date
+    next_due_date: row.next_due_date,
+    frequency: row.frequency,
+    sort_order: row.sort_order
   }));
 }
 
@@ -2320,7 +2323,8 @@ async function addFinanceBudgetItem(item) {
         cycle: item.cycle,
         active: true,
         sort_order: financeBudgetItems.length,
-        next_due_date: item.nextDueDate || null
+        next_due_date: item.nextDueDate || null,
+        frequency: item.frequency || null
       })
       .select()
       .single();
@@ -2340,7 +2344,9 @@ async function addFinanceBudgetItem(item) {
       cycle: data.cycle,
       active: data.active,
       accumulated_amount: Number(data.accumulated_amount || 0),
-      next_due_date: data.next_due_date
+      next_due_date: data.next_due_date,
+      frequency: data.frequency,
+      sort_order: data.sort_order
     });
   } else {
     financeBudgetItems.push({
@@ -2352,7 +2358,9 @@ async function addFinanceBudgetItem(item) {
       cycle: item.cycle,
       active: true,
       accumulated_amount: 0,
-      next_due_date: item.nextDueDate || null
+      next_due_date: item.nextDueDate || null,
+      frequency: item.frequency || null,
+      sort_order: financeBudgetItems.length
     });
   }
   return true;
@@ -3453,7 +3461,7 @@ function buildFinanceAccountBudgetPanel(account, items) {
     const labelWrap = document.createElement("div");
     labelWrap.className = "finance-budget-item-label-wrap";
     labelWrap.appendChild(label);
-    const dueBadge = buildFinanceBudgetDueDateBadge(budgetItem.next_due_date);
+    const dueBadge = buildFinanceBudgetDueDateBadge(budgetItem);
     if (dueBadge) labelWrap.appendChild(dueBadge);
 
     const statusWrap = document.createElement("div");
@@ -3833,6 +3841,7 @@ function resetFinanceBudgetAddForm() {
   financeBudgetAmountInput.value = "";
   financeBudgetCycleSelect.value = "monthly";
   financeBudgetDueDateInput.value = "";
+  financeBudgetFrequencySelect.value = "";
   financeBudgetTagSlot.innerHTML = "";
   financeBudgetTagPicker = buildFinanceTagPicker("");
   financeBudgetTagSlot.appendChild(financeBudgetTagPicker.wrap);
@@ -3855,6 +3864,7 @@ financeBudgetSaveButton.addEventListener("click", async function () {
   const cycle = financeBudgetCycleSelect.value;
   const tag = financeBudgetTagPicker ? financeBudgetTagPicker.input.value.trim() : "";
   const nextDueDate = financeBudgetDueDateInput.value || null;
+  const frequency = financeBudgetFrequencySelect.value || null;
 
   if (!accountId) {
     alert("請先建立至少一個資產帳戶。");
@@ -3876,10 +3886,10 @@ financeBudgetSaveButton.addEventListener("click", async function () {
   let ok;
   if (financeBudgetEditingId) {
     ok = await updateFinanceBudgetItem(financeBudgetEditingId, {
-      account_id: accountId, label, planned_amount: plannedAmount, cycle, tag, next_due_date: nextDueDate
+      account_id: accountId, label, planned_amount: plannedAmount, cycle, tag, next_due_date: nextDueDate, frequency
     });
   } else {
-    ok = await addFinanceBudgetItem({ accountId, label, plannedAmount, cycle, tag, nextDueDate });
+    ok = await addFinanceBudgetItem({ accountId, label, plannedAmount, cycle, tag, nextDueDate, frequency });
   }
   financeBudgetSaveButton.disabled = false;
 
@@ -3906,12 +3916,62 @@ function getFinanceBudgetDueDateStatus(dateStr) {
   return { label, status, diffDays };
 }
 
-function buildFinanceBudgetDueDateBadge(dateStr) {
-  const info = getFinanceBudgetDueDateStatus(dateStr);
+const FINANCE_BUDGET_FREQUENCY_LABELS = {
+  monthly: "月繳",
+  quarterly: "季繳",
+  semiannual: "半年繳",
+  annual: "年繳"
+};
+
+// 依「原本排定的扣款日」（不是使用者確認的當天）往後推算下一次，銀行偶發延遲一兩天
+// 扣款也不會讓下次日期跟著飄移——使用者拿實際案例驗證過這個推算基準是對的（見討論記錄）。
+function addIntervalToDate(dateStr, frequency) {
+  const d = new Date(dateStr + "T00:00:00");
+  switch (frequency) {
+    case "monthly": d.setMonth(d.getMonth() + 1); break;
+    case "quarterly": d.setMonth(d.getMonth() + 3); break;
+    case "semiannual": d.setMonth(d.getMonth() + 6); break;
+    case "annual": d.setFullYear(d.getFullYear() + 1); break;
+    default: return null;
+  }
+  return d.toISOString().slice(0, 10);
+}
+
+// 過期的徽章改成明顯的可點擊按鈕：點下去確認「這筆真的扣了嗎」，確認後一次做完
+// 「歸零累積進度 + 依頻率往後推算下次扣款日」兩件事，不用像之前分開點「歸零」再手動改日期
+// （見討論記錄：使用者主動要求把這個變明顯，並確認自動歸零的邏輯——歸零本身只是解除
+// 虛擬保留、把可運用資格還給帳戶，真正的支出還是要另外記一筆交易，這裡不動帳戶餘額）。
+// 沒有設定頻率的話，只歸零、不自動推算下次日期，要自己之後手動編輯。
+function buildFinanceBudgetDueDateBadge(item) {
+  const info = getFinanceBudgetDueDateStatus(item.next_due_date);
   if (!info) return null;
-  const badge = document.createElement("span");
-  badge.className = "finance-budget-due-badge is-" + info.status;
-  badge.textContent = info.status === "overdue" ? `已過期 ${info.label}` : `下次扣款 ${info.label}`;
+
+  if (info.status !== "overdue") {
+    const badge = document.createElement("span");
+    badge.className = "finance-budget-due-badge is-" + info.status;
+    badge.textContent = `下次扣款 ${info.label}`;
+    return badge;
+  }
+
+  const badge = document.createElement("button");
+  badge.type = "button";
+  badge.className = "finance-budget-due-badge finance-budget-due-badge-button is-overdue";
+  badge.textContent = `⚠️ 已過期 ${info.label}，點我確認`;
+  badge.addEventListener("click", async function (event) {
+    event.stopPropagation();
+    const freqLabel = FINANCE_BUDGET_FREQUENCY_LABELS[item.frequency];
+    const nextDate = item.frequency ? addIntervalToDate(item.next_due_date, item.frequency) : null;
+    const confirmMsg = nextDate
+      ? `「${item.label}」這筆 ${info.label} 的扣款確認已經扣了嗎？\n確認後會重置累積進度，並依${freqLabel}往後推算下次扣款日為 ${nextDate.slice(5).replace("-", "/")}。`
+      : `「${item.label}」這筆 ${info.label} 的扣款確認已經扣了嗎？\n確認後會重置累積進度（沒有設定扣款頻率，不會自動推算下次日期，要自己手動編輯）。`;
+    if (!window.confirm(confirmMsg)) return;
+
+    const updates = { accumulated_amount: 0 };
+    if (nextDate) updates.next_due_date = nextDate;
+    const ok = await updateFinanceBudgetItem(item.id, updates);
+    if (!ok) return;
+    renderFinanceAccounts();
+  });
   return badge;
 }
 
@@ -3946,15 +4006,38 @@ function buildBudgetAccountGroupElement(account, items) {
   header.appendChild(headerName);
   group.appendChild(header);
 
+  // 項目包進獨立容器，跟上面的帳戶名稱標題分開——拖曳排序只在這個容器內部判斷插入位置，
+  // 不會被標題干擾（不然拖曳邏輯可能會把項目誤判成要插到標題前面）。
+  const itemsContainer = document.createElement("div");
+  itemsContainer.className = "finance-budget-account-items";
+  group.appendChild(itemsContainer);
+
   items.forEach(function (item) {
     const row = document.createElement("div");
     row.className = "finance-budget-item";
+    row.dataset.budgetItemId = item.id;
 
     const topRow = document.createElement("div");
     topRow.className = "finance-budget-item-row";
 
+    // 拖曳排序：目前只能在同一個帳戶內部調整順序（見討論記錄），跨帳戶搬項目
+    // 還是要用「編輯」改帳戶欄位——這是這輪刻意先控制的範圍，不是技術做不到，
+    // 是想先確認「同帳戶內排序」這個最常見的需求解決得夠不夠用。
+    const dragHandle = document.createElement("button");
+    dragHandle.type = "button";
+    dragHandle.className = "finance-drag-handle";
+    dragHandle.textContent = "⠿";
+    dragHandle.title = "按住拖曳排序（可調整同一帳戶內的順序）";
+    dragHandle.setAttribute("aria-label", "按住拖曳排序");
+    attachFinanceBudgetItemDragHandlers(dragHandle, row);
+
     const label = document.createElement("span");
     label.textContent = item.label;
+
+    const leftWrap = document.createElement("div");
+    leftWrap.className = "finance-budget-item-label-wrap";
+    leftWrap.appendChild(dragHandle);
+    leftWrap.appendChild(label);
 
     const meta = document.createElement("span");
     meta.className = "finance-budget-item-status";
@@ -3988,6 +4071,7 @@ function buildBudgetAccountGroupElement(account, items) {
       financeBudgetAmountInput.value = item.planned_amount;
       financeBudgetCycleSelect.value = item.cycle;
       financeBudgetDueDateInput.value = item.next_due_date || "";
+      financeBudgetFrequencySelect.value = item.frequency || "";
       financeBudgetTagPicker.input.value = item.tag || "";
       financeBudgetSaveButton.textContent = "儲存修改";
       financeBudgetAddSection.style.display = "";
@@ -4007,15 +4091,116 @@ function buildBudgetAccountGroupElement(account, items) {
     actions.appendChild(editBtn);
     actions.appendChild(deleteBtn);
 
-    topRow.appendChild(label);
+    topRow.appendChild(leftWrap);
     topRow.appendChild(meta);
 
     row.appendChild(topRow);
     row.appendChild(actions);
-    group.appendChild(row);
+    itemsContainer.appendChild(row);
   });
 
   return group;
+}
+
+// 分配項目拖曳排序：跟帳戶排序共用同一套插入位置判斷邏輯（pickFinanceAccountInsertionTarget
+// 本身就是通用的，不綁定帳戶），但不用自動捲動（項目清單通常不長，彈窗本身也有自己的捲動）。
+function attachFinanceBudgetItemDragHandlers(handle, row) {
+  let dragging = false;
+  let startX = 0;
+  let startY = 0;
+  let lastPointerX = 0;
+  let lastPointerY = 0;
+  let dropTargetEl = null;
+
+  function clearDropTargetHighlight() {
+    if (dropTargetEl) {
+      dropTargetEl.classList.remove("finance-item-drop-before", "finance-item-drop-after");
+      dropTargetEl = null;
+    }
+  }
+
+  function updateDropTargetHighlight(container) {
+    clearDropTargetHighlight();
+    const target = pickFinanceAccountInsertionTarget(container, row, lastPointerX, lastPointerY);
+    if (target && target !== row) {
+      target.classList.add("finance-item-drop-before");
+      dropTargetEl = target;
+    } else if (!target && container.lastElementChild && container.lastElementChild !== row) {
+      container.lastElementChild.classList.add("finance-item-drop-after");
+      dropTargetEl = container.lastElementChild;
+    }
+  }
+
+  handle.addEventListener("pointerdown", function (e) {
+    e.preventDefault();
+    handle.setPointerCapture(e.pointerId);
+    dragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    lastPointerX = e.clientX;
+    lastPointerY = e.clientY;
+    row.classList.add("finance-item-dragging");
+  });
+
+  handle.addEventListener("pointermove", function (e) {
+    if (!dragging) return;
+    lastPointerX = e.clientX;
+    lastPointerY = e.clientY;
+    row.style.transform = `translate(${lastPointerX - startX}px, ${lastPointerY - startY}px)`;
+
+    const container = row.parentElement;
+    if (container) updateDropTargetHighlight(container);
+  });
+
+  handle.addEventListener("pointerup", async function () {
+    if (!dragging) return;
+    dragging = false;
+
+    row.style.transform = "";
+    row.classList.remove("finance-item-dragging");
+    clearDropTargetHighlight();
+
+    const container = row.parentElement;
+    if (container) {
+      const insertBeforeEl = pickFinanceAccountInsertionTarget(container, row, lastPointerX, lastPointerY);
+      if (insertBeforeEl) {
+        container.insertBefore(row, insertBeforeEl);
+      } else {
+        container.appendChild(row);
+      }
+      await finalizeFinanceBudgetItemReorder(container);
+    }
+  });
+
+  handle.addEventListener("pointercancel", function () {
+    dragging = false;
+    row.style.transform = "";
+    row.classList.remove("finance-item-dragging");
+    clearDropTargetHighlight();
+  });
+}
+
+// 放開拖曳後，照這個帳戶群組目前的實際順序，重新配給連續的 sort_order（0, 1, 2...），
+// 只把真的有變動的項目寫回 Supabase（跟帳戶排序用同一套「只寫有變動的」原則）。
+async function finalizeFinanceBudgetItemReorder(container) {
+  const orderedIds = Array.from(container.children)
+    .map(function (el) { return el.dataset ? el.dataset.budgetItemId : null; })
+    .filter(Boolean);
+
+  const changed = [];
+  orderedIds.forEach(function (id, index) {
+    const item = financeBudgetItems.find(function (b) { return b.id === id; });
+    if (item && item.sort_order !== index) {
+      item.sort_order = index;
+      changed.push(item);
+    }
+  });
+
+  if (changed.length === 0 || !currentUser) return;
+
+  await Promise.all(changed.map(function (item) {
+    return supabaseClient.from("finance_budget_items").update({ sort_order: item.sort_order }).eq("id", item.id);
+  }));
 }
 
 // 分配彈窗排版：桌面版曾經試過 CSS Grid（固定兩欄，高度對不齊會留空白）跟 CSS 多欄流排版
@@ -4036,7 +4221,9 @@ function renderFinanceBudgetModal() {
   const groups = accountIds
     .map(function (accountId) {
       const account = financeAccounts.find(function (a) { return a.id === accountId; });
-      const items = financeBudgetItems.filter(function (b) { return b.account_id === accountId; });
+      const items = financeBudgetItems
+        .filter(function (b) { return b.account_id === accountId; })
+        .sort(function (a, b) { return (a.sort_order || 0) - (b.sort_order || 0); });
       return { account: account, items: items };
     })
     .filter(function (g) { return g.account; });
@@ -4397,9 +4584,9 @@ function buildFinanceAccountItem(account, manageMode) {
 
   // 只有資產帳戶、且底下有進行中分配項目時，才需要展開/收合這個機制——
   // 沒有分配項目的帳戶完全不受影響，畫面跟改版前一樣（見討論記錄的一貫原則）。
-  const accountBudgetItems = financeBudgetItems.filter(function (b) {
-    return b.account_id === account.id && b.active;
-  });
+  const accountBudgetItems = financeBudgetItems
+    .filter(function (b) { return b.account_id === account.id && b.active; })
+    .sort(function (a, b) { return (a.sort_order || 0) - (b.sort_order || 0); });
 
   let panel = null;
   if (account.category === "asset" && accountBudgetItems.length > 0) {

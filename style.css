@@ -1730,6 +1730,22 @@ button.finance-drag-handle {
     color: #fca5a5;
 }
 
+/* 過期後的徽章是真的可以點的按鈕（點下去確認扣款、歸零+推算下次日期），
+   要跟純顯示用的徽章明顯做出區別，所以用實心背景＋邊框＋閃爍動畫，
+   比其他狀態的徽章更搶眼（見討論記錄：使用者要求「做明顯一些」）。 */
+.finance-budget-due-badge-button {
+    border: 1px solid #f87171;
+    background: #f87171;
+    color: #1c0a0a;
+    font-weight: 700;
+    cursor: pointer;
+    animation: financeBudgetOverPulse 1.4s ease-in-out infinite;
+}
+
+.finance-budget-due-badge-button:hover {
+    background: #fca5a5;
+}
+
 /* ============ 財務 Phase 3 收合版面（放檔案最後） ============ */
 
 /* 可運用資金摘要標籤：平常收合、不佔畫面空間，點一下展開三個數字

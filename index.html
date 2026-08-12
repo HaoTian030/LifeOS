@@ -161,7 +161,7 @@
             <div class="finance-card-header">
                 <h2>💰 資產總覽</h2>
                 <div class="finance-card-header-actions">
-                    <button id="finance-budget-open-button" type="button" class="finance-icon-button" title="管理分配項目" aria-label="管理分配項目">🎯</button>
+                    <button id="finance-budget-open-button" type="button" class="finance-icon-button" title="管理資金分配資料庫" aria-label="管理資金分配資料庫">🎯</button>
                     <button id="finance-tx-detail-open-button" type="button" class="finance-icon-button" title="查看記帳明細" aria-label="查看記帳明細">📜</button>
                     <button id="finance-add-account-toggle" type="button" class="finance-icon-button" title="新增帳戶" aria-label="新增帳戶">➕</button>
                     <button id="finance-accounts-manage-toggle" type="button" class="finance-icon-button" title="管理帳戶" aria-label="管理帳戶">🔧</button>
@@ -384,7 +384,7 @@
     <div id="finance-budget-modal-overlay" class="modal-overlay" style="display:none;">
         <div class="modal-box modal-box-wide">
             <div class="modal-header">
-                <h2>🎯 管理分配項目</h2>
+                <h2>🎯 管理資金分配資料庫</h2>
                 <button id="finance-budget-modal-close" type="button">✕</button>
             </div>
             <p class="finance-budget-modal-hint">新增、編輯、刪除分配項目在這裡處理；日常看進度／存入，直接在資產總覽點開帳戶卡片就好，不用開這個視窗。</p>
@@ -404,6 +404,13 @@
                     下次扣款日（選填，累積儲蓄型可以用來提醒自己）
                     <input id="finance-budget-due-date-input" type="date">
                 </label>
+                <select id="finance-budget-frequency-select">
+                    <option value="">扣款頻率（沒設定就不會自動推算下次日期）</option>
+                    <option value="monthly">月繳</option>
+                    <option value="quarterly">季繳</option>
+                    <option value="semiannual">半年繳</option>
+                    <option value="annual">年繳</option>
+                </select>
                 <button id="finance-budget-save-button" type="button">新增</button>
             </div>
 
