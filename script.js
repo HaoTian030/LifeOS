@@ -1943,6 +1943,7 @@ const financeBudgetLabelInput = document.getElementById("finance-budget-label-in
 const financeBudgetAmountInput = document.getElementById("finance-budget-amount-input");
 const financeBudgetTagSlot = document.getElementById("finance-budget-tag-slot");
 const financeBudgetCycleSelect = document.getElementById("finance-budget-cycle-select");
+const financeBudgetDueDateInput = document.getElementById("finance-budget-due-date-input");
 const financeBudgetSaveButton = document.getElementById("finance-budget-save-button");
 const financeBudgetEmpty = document.getElementById("finance-budget-empty");
 const financeBudgetList = document.getElementById("finance-budget-list");
@@ -2301,7 +2302,8 @@ async function loadFinanceBudgetItemsFromSupabase() {
     planned_amount: Number(row.planned_amount),
     cycle: row.cycle,
     active: row.active,
-    accumulated_amount: Number(row.accumulated_amount || 0)
+    accumulated_amount: Number(row.accumulated_amount || 0),
+    next_due_date: row.next_due_date
   }));
 }
 
@@ -2317,7 +2319,8 @@ async function addFinanceBudgetItem(item) {
         planned_amount: item.plannedAmount,
         cycle: item.cycle,
         active: true,
-        sort_order: financeBudgetItems.length
+        sort_order: financeBudgetItems.length,
+        next_due_date: item.nextDueDate || null
       })
       .select()
       .single();
@@ -2336,7 +2339,8 @@ async function addFinanceBudgetItem(item) {
       planned_amount: Number(data.planned_amount),
       cycle: data.cycle,
       active: data.active,
-      accumulated_amount: Number(data.accumulated_amount || 0)
+      accumulated_amount: Number(data.accumulated_amount || 0),
+      next_due_date: data.next_due_date
     });
   } else {
     financeBudgetItems.push({
@@ -2347,7 +2351,8 @@ async function addFinanceBudgetItem(item) {
       planned_amount: item.plannedAmount,
       cycle: item.cycle,
       active: true,
-      accumulated_amount: 0
+      accumulated_amount: 0,
+      next_due_date: item.nextDueDate || null
     });
   }
   return true;
@@ -3445,6 +3450,12 @@ function buildFinanceAccountBudgetPanel(account, items) {
     const label = document.createElement("span");
     label.textContent = budgetItem.label;
 
+    const labelWrap = document.createElement("div");
+    labelWrap.className = "finance-budget-item-label-wrap";
+    labelWrap.appendChild(label);
+    const dueBadge = buildFinanceBudgetDueDateBadge(budgetItem.next_due_date);
+    if (dueBadge) labelWrap.appendChild(dueBadge);
+
     const statusWrap = document.createElement("div");
     statusWrap.style.display = "flex";
     statusWrap.style.alignItems = "center";
@@ -3492,7 +3503,7 @@ function buildFinanceAccountBudgetPanel(account, items) {
       statusWrap.appendChild(depositBtn);
     }
 
-    topRow.appendChild(label);
+    topRow.appendChild(labelWrap);
     topRow.appendChild(statusWrap);
 
     const progressBar = document.createElement("div");
@@ -3821,6 +3832,7 @@ function resetFinanceBudgetAddForm() {
   financeBudgetLabelInput.value = "";
   financeBudgetAmountInput.value = "";
   financeBudgetCycleSelect.value = "monthly";
+  financeBudgetDueDateInput.value = "";
   financeBudgetTagSlot.innerHTML = "";
   financeBudgetTagPicker = buildFinanceTagPicker("");
   financeBudgetTagSlot.appendChild(financeBudgetTagPicker.wrap);
@@ -3842,6 +3854,7 @@ financeBudgetSaveButton.addEventListener("click", async function () {
   const amountRaw = financeBudgetAmountInput.value.trim();
   const cycle = financeBudgetCycleSelect.value;
   const tag = financeBudgetTagPicker ? financeBudgetTagPicker.input.value.trim() : "";
+  const nextDueDate = financeBudgetDueDateInput.value || null;
 
   if (!accountId) {
     alert("請先建立至少一個資產帳戶。");
@@ -3863,10 +3876,10 @@ financeBudgetSaveButton.addEventListener("click", async function () {
   let ok;
   if (financeBudgetEditingId) {
     ok = await updateFinanceBudgetItem(financeBudgetEditingId, {
-      account_id: accountId, label, planned_amount: plannedAmount, cycle, tag
+      account_id: accountId, label, planned_amount: plannedAmount, cycle, tag, next_due_date: nextDueDate
     });
   } else {
-    ok = await addFinanceBudgetItem({ accountId, label, plannedAmount, cycle, tag });
+    ok = await addFinanceBudgetItem({ accountId, label, plannedAmount, cycle, tag, nextDueDate });
   }
   financeBudgetSaveButton.disabled = false;
 
@@ -3876,6 +3889,31 @@ financeBudgetSaveButton.addEventListener("click", async function () {
   renderFinanceBudgetModal();
   renderFinanceAccounts();
 });
+
+// 下次扣款日提醒：主要給累積儲蓄型項目用（保單這種會在特定日期被自動扣款的），
+// 讓使用者不用等帳戶餘額突然變動才回頭找是哪筆被扣了（見討論記錄的需求）。
+// 過期（已經過了扣款日還沒處理）用紅色，7 天內用醒目色，其餘維持一般灰色。
+function getFinanceBudgetDueDateStatus(dateStr) {
+  if (!dateStr) return null;
+  const due = new Date(dateStr + "T00:00:00");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((due.getTime() - today.getTime()) / 86400000);
+  const label = `${due.getMonth() + 1}/${due.getDate()}`;
+  let status = "normal";
+  if (diffDays < 0) status = "overdue";
+  else if (diffDays <= 7) status = "soon";
+  return { label, status, diffDays };
+}
+
+function buildFinanceBudgetDueDateBadge(dateStr) {
+  const info = getFinanceBudgetDueDateStatus(dateStr);
+  if (!info) return null;
+  const badge = document.createElement("span");
+  badge.className = "finance-budget-due-badge is-" + info.status;
+  badge.textContent = info.status === "overdue" ? `已過期 ${info.label}` : `下次扣款 ${info.label}`;
+  return badge;
+}
 
 // 每個分配項目的「已完成／進行中／超支」狀態文字與進度條寬度，統一算在這裡，
 // 渲染跟之後其他地方要用同一套判斷邏輯時都呼叫這個，避免各處各自算一次容易兜不齊。
@@ -3918,6 +3956,12 @@ function buildBudgetAccountGroupElement(account, items) {
     const label = document.createElement("span");
     label.textContent = item.label;
 
+    const labelWrap = document.createElement("div");
+    labelWrap.className = "finance-budget-item-label-wrap";
+    labelWrap.appendChild(label);
+    const dueBadge = buildFinanceBudgetDueDateBadge(item.next_due_date);
+    if (dueBadge) labelWrap.appendChild(dueBadge);
+
     const meta = document.createElement("span");
     meta.className = "finance-budget-item-status";
     meta.textContent = `目標 $${Math.round(item.planned_amount).toLocaleString()} · ${item.cycle === "monthly" ? "每月固定" : "累積儲蓄"}`;
@@ -3949,6 +3993,7 @@ function buildBudgetAccountGroupElement(account, items) {
       financeBudgetLabelInput.value = item.label;
       financeBudgetAmountInput.value = item.planned_amount;
       financeBudgetCycleSelect.value = item.cycle;
+      financeBudgetDueDateInput.value = item.next_due_date || "";
       financeBudgetTagPicker.input.value = item.tag || "";
       financeBudgetSaveButton.textContent = "儲存修改";
       financeBudgetAddSection.style.display = "";
@@ -3968,7 +4013,7 @@ function buildBudgetAccountGroupElement(account, items) {
     actions.appendChild(editBtn);
     actions.appendChild(deleteBtn);
 
-    topRow.appendChild(label);
+    topRow.appendChild(labelWrap);
     topRow.appendChild(meta);
 
     row.appendChild(topRow);

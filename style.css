@@ -1690,6 +1690,46 @@ button.finance-drag-handle {
     margin-left: 6px;
 }
 
+.finance-budget-due-date-label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+.finance-budget-item-label-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+/* 下次扣款日徽章：主要給累積儲蓄型項目用（保單這種會在特定日期被自動扣款），
+   過期用紅色、7 天內用琥珀色提醒，其餘維持一般灰色，跟其他警示色系保持一致
+   （見討論記錄的需求）。 */
+.finance-budget-due-badge {
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 6px;
+    white-space: nowrap;
+}
+
+.finance-budget-due-badge.is-normal {
+    background: rgba(107, 114, 128, 0.2);
+    color: #9ca3af;
+}
+
+.finance-budget-due-badge.is-soon {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+}
+
+.finance-budget-due-badge.is-overdue {
+    background: rgba(248, 113, 113, 0.15);
+    color: #fca5a5;
+}
+
 /* ============ 財務 Phase 3 收合版面（放檔案最後） ============ */
 
 /* 可運用資金摘要標籤：平常收合、不佔畫面空間，點一下展開三個數字
