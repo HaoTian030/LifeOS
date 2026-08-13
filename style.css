@@ -1916,6 +1916,21 @@ button.finance-drag-handle {
     margin-left: 6px;
 }
 
+/* 「其他金額」是設定了每月固定存入金額之後的次要選項（一次性調整用），
+   刻意做得比主要的「存入 $X」按鈕低調，不搶主要動作的視覺焦點。 */
+.finance-budget-item-status-link {
+    background: none !important;
+    border: none !important;
+    color: #6b7280 !important;
+    text-decoration: underline;
+    font-size: 11px;
+    padding: 2px 4px !important;
+}
+
+.finance-budget-item-status-link:hover {
+    color: #9ca3af !important;
+}
+
 .finance-item-budget-panel-floating .finance-budget-item-row {
     flex-wrap: wrap;
 }

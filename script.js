@@ -1945,6 +1945,7 @@ const financeBudgetTagSlot = document.getElementById("finance-budget-tag-slot");
 const financeBudgetCycleSelect = document.getElementById("finance-budget-cycle-select");
 const financeBudgetDueDateInput = document.getElementById("finance-budget-due-date-input");
 const financeBudgetFrequencySelect = document.getElementById("finance-budget-frequency-select");
+const financeBudgetMonthlyDepositInput = document.getElementById("finance-budget-monthly-deposit-input");
 const financeBudgetSaveButton = document.getElementById("finance-budget-save-button");
 const financeBudgetEmpty = document.getElementById("finance-budget-empty");
 const financeBudgetList = document.getElementById("finance-budget-list");
@@ -2305,7 +2306,8 @@ async function loadFinanceBudgetItemsFromSupabase() {
     accumulated_amount: Number(row.accumulated_amount || 0),
     next_due_date: row.next_due_date,
     frequency: row.frequency,
-    sort_order: row.sort_order
+    sort_order: row.sort_order,
+    monthly_deposit_amount: row.monthly_deposit_amount === null ? null : Number(row.monthly_deposit_amount)
   }));
 }
 
@@ -2323,7 +2325,8 @@ async function addFinanceBudgetItem(item) {
         active: true,
         sort_order: financeBudgetItems.length,
         next_due_date: item.nextDueDate || null,
-        frequency: item.frequency || null
+        frequency: item.frequency || null,
+        monthly_deposit_amount: item.monthlyDepositAmount || null
       })
       .select()
       .single();
@@ -2345,7 +2348,8 @@ async function addFinanceBudgetItem(item) {
       accumulated_amount: Number(data.accumulated_amount || 0),
       next_due_date: data.next_due_date,
       frequency: data.frequency,
-      sort_order: data.sort_order
+      sort_order: data.sort_order,
+      monthly_deposit_amount: data.monthly_deposit_amount === null ? null : Number(data.monthly_deposit_amount)
     });
   } else {
     financeBudgetItems.push({
@@ -2359,7 +2363,8 @@ async function addFinanceBudgetItem(item) {
       accumulated_amount: 0,
       next_due_date: item.nextDueDate || null,
       frequency: item.frequency || null,
-      sort_order: financeBudgetItems.length
+      sort_order: financeBudgetItems.length,
+      monthly_deposit_amount: item.monthlyDepositAmount || null
     });
   }
   return true;
@@ -3485,27 +3490,51 @@ function buildFinanceAccountBudgetPanel(account, items) {
     statusWrap.appendChild(status);
 
     if (budgetItem.cycle !== "monthly") {
-      const depositBtn = document.createElement("button");
-      depositBtn.type = "button";
-      depositBtn.textContent = "存入";
-      depositBtn.addEventListener("click", async function () {
-        const raw = window.prompt(`要存入多少到「${budgetItem.label}」？（要更正可以輸入負數）`, "");
-        if (raw === null) return;
-        const delta = Number(raw);
+      // 有設定「每月固定存入金額」的話，一鍵直接用那個金額存入，不用每次手動輸入
+      // （見討論記錄：紅包這種每月存一樣金額的項目，不想每次自己心算/輸入）。
+      // 沒設定的維持原本「按了才跳出輸入視窗」的行為。
+      async function depositAmount(delta) {
         if (isNaN(delta) || delta === 0) {
           alert("請輸入不是 0 的數字。");
           return;
         }
-        // 原本這裡有一個「確定嗎？」的二次確認，實測後發現存款是高頻動作，
-        // 每次都要多按一次確認反而很煩，拿掉了——防呆改靠「歸零」按鈕（在管理分配項目
-        // 彈窗裡）跟輸入負數修正，兩個都還在，打錯了還是有辦法修（見討論記錄的取捨）。
         const nextAmount = Math.max((budgetItem.accumulated_amount || 0) + delta, 0);
         const ok = await updateFinanceBudgetItem(budgetItem.id, { accumulated_amount: nextAmount });
         if (!ok) return;
         expandedFinanceAccountIds.add(account.id); // 存完之後重畫整個畫面，這裡確保這張卡片還是展開的
         renderFinanceAccounts();
-      });
-      statusWrap.appendChild(depositBtn);
+      }
+
+      const depositBtn = document.createElement("button");
+      depositBtn.type = "button";
+
+      if (budgetItem.monthly_deposit_amount) {
+        depositBtn.textContent = `存入 $${Math.round(budgetItem.monthly_deposit_amount).toLocaleString()}`;
+        depositBtn.addEventListener("click", async function () {
+          await depositAmount(budgetItem.monthly_deposit_amount);
+        });
+        statusWrap.appendChild(depositBtn);
+
+        // 保留手動輸入其他金額的彈性（例如這個月多存或少存），不強迫每次都用固定金額。
+        const customBtn = document.createElement("button");
+        customBtn.type = "button";
+        customBtn.className = "finance-budget-item-status-link";
+        customBtn.textContent = "其他金額";
+        customBtn.addEventListener("click", async function () {
+          const raw = window.prompt(`要存入多少到「${budgetItem.label}」？（要更正可以輸入負數）`, "");
+          if (raw === null) return;
+          await depositAmount(Number(raw));
+        });
+        statusWrap.appendChild(customBtn);
+      } else {
+        depositBtn.textContent = "存入";
+        depositBtn.addEventListener("click", async function () {
+          const raw = window.prompt(`要存入多少到「${budgetItem.label}」？（要更正可以輸入負數）`, "");
+          if (raw === null) return;
+          await depositAmount(Number(raw));
+        });
+        statusWrap.appendChild(depositBtn);
+      }
     }
 
     topRow.appendChild(labelWrap);
@@ -3828,6 +3857,7 @@ function resetFinanceBudgetAddForm() {
   financeBudgetCycleSelect.value = "monthly";
   financeBudgetDueDateInput.value = "";
   financeBudgetFrequencySelect.value = "";
+  financeBudgetMonthlyDepositInput.value = "";
   financeBudgetTagSlot.innerHTML = "";
   financeBudgetTagPicker = buildFinanceTagPicker("");
   financeBudgetTagSlot.appendChild(financeBudgetTagPicker.wrap);
@@ -3851,6 +3881,7 @@ financeBudgetSaveButton.addEventListener("click", async function () {
   const tag = financeBudgetTagPicker ? financeBudgetTagPicker.input.value.trim() : "";
   const nextDueDate = financeBudgetDueDateInput.value || null;
   const frequency = financeBudgetFrequencySelect.value || null;
+  const monthlyDepositRaw = financeBudgetMonthlyDepositInput.value.trim();
 
   if (!accountId) {
     alert("請先建立至少一個資產帳戶。");
@@ -3866,16 +3897,22 @@ financeBudgetSaveButton.addEventListener("click", async function () {
     financeBudgetAmountInput.focus();
     return;
   }
+  if (monthlyDepositRaw !== "" && (isNaN(Number(monthlyDepositRaw)) || Number(monthlyDepositRaw) <= 0)) {
+    alert("每月固定存入金額請輸入大於 0 的數字，或留空不設定。");
+    financeBudgetMonthlyDepositInput.focus();
+    return;
+  }
   const plannedAmount = Number(amountRaw);
+  const monthlyDepositAmount = monthlyDepositRaw === "" ? null : Number(monthlyDepositRaw);
 
   financeBudgetSaveButton.disabled = true;
   let ok;
   if (financeBudgetEditingId) {
     ok = await updateFinanceBudgetItem(financeBudgetEditingId, {
-      account_id: accountId, label, planned_amount: plannedAmount, cycle, tag, next_due_date: nextDueDate, frequency
+      account_id: accountId, label, planned_amount: plannedAmount, cycle, tag, next_due_date: nextDueDate, frequency, monthly_deposit_amount: monthlyDepositAmount
     });
   } else {
-    ok = await addFinanceBudgetItem({ accountId, label, plannedAmount, cycle, tag, nextDueDate, frequency });
+    ok = await addFinanceBudgetItem({ accountId, label, plannedAmount, cycle, tag, nextDueDate, frequency, monthlyDepositAmount });
   }
   financeBudgetSaveButton.disabled = false;
 
@@ -4058,6 +4095,7 @@ function buildBudgetAccountGroupElement(account, items) {
       financeBudgetCycleSelect.value = item.cycle;
       financeBudgetDueDateInput.value = item.next_due_date || "";
       financeBudgetFrequencySelect.value = item.frequency || "";
+      financeBudgetMonthlyDepositInput.value = item.monthly_deposit_amount || "";
       financeBudgetTagPicker.input.value = item.tag || "";
       financeBudgetSaveButton.textContent = "儲存修改";
       financeBudgetAddSection.style.display = "";
