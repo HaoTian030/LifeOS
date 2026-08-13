@@ -1731,19 +1731,28 @@ button.finance-drag-handle {
 }
 
 /* 過期後的徽章是真的可以點的按鈕（點下去確認扣款、歸零+推算下次日期），
-   要跟純顯示用的徽章明顯做出區別，所以用實心背景＋邊框＋閃爍動畫，
-   比其他狀態的徽章更搶眼（見討論記錄：使用者要求「做明顯一些」）。 */
+   要跟純顯示用的徽章明顯做出區別。原本用「整個按鈕淡出淡入」的動畫，淡的時候
+   文字幾乎看不見、變成一坨模糊的暗紅色，這是判斷失誤，改成「通知波紋」效果：
+   文字跟底色隨時保持清楚可讀（不套用 opacity 動畫），只讓外圍光暈一圈一圈往外
+   擴散消失，注意力效果還在，但不會犧牲文字可讀性（見討論記錄的修正）。 */
 .finance-budget-due-badge-button {
-    border: 1px solid #f87171;
-    background: #f87171;
-    color: #1c0a0a;
+    border: none;
+    background: #ef4444;
+    color: #ffffff;
     font-weight: 700;
     cursor: pointer;
-    animation: financeBudgetOverPulse 1.4s ease-in-out infinite;
+    position: relative;
+    animation: financeDueBadgeGlow 1.8s ease-out infinite;
 }
 
 .finance-budget-due-badge-button:hover {
-    background: #fca5a5;
+    background: #f87171;
+}
+
+@keyframes financeDueBadgeGlow {
+    0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55); }
+    70% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
 }
 
 /* ============ 財務 Phase 3 收合版面（放檔案最後） ============ */
@@ -1761,7 +1770,6 @@ button.finance-drag-handle {
     line-height: 1;
     padding: 6px 12px;
     border-radius: 8px;
-    cursor: pointer;
     margin: 10px 0;
 }
 
@@ -1785,15 +1793,6 @@ button.finance-drag-handle {
 
 .finance-forecast-toggle-amount {
     font-weight: 700;
-}
-
-.finance-forecast-toggle-caret {
-    font-size: 11px;
-    transition: transform 0.15s ease;
-}
-
-.finance-forecast-toggle.is-open .finance-forecast-toggle-caret {
-    transform: rotate(180deg);
 }
 
 .finance-forecast-panel {

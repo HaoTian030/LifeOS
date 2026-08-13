@@ -2437,22 +2437,20 @@ function getCurrentYearMonth() {
   return new Date().toISOString().slice(0, 7);
 }
 
-// 這個帳戶裡，「已經被劃定用途、不算自由的錢」一共多少，兩種型態算法不一樣：
+// 這個帳戶裡，「已經被劃定用途、不算自由的錢」一共多少：
 //
-// - monthly（每月固定，例如房租）：算「還沒付」的部分 max(應分配-這個月已付,0)——
-//   這種錢就算還沒付，也已經是跑不掉的義務，該先從可運用金額扣掉。
-// - once（累積儲蓄，例如紅包）：算「已經存入」的部分 accumulated_amount——
-//   雖然錢還留在帳戶裡，但已經被你劃定用途，不是自由的錢；還沒存到的目標金額不算，
-//   那只是未來計畫，不是現在的負債（見討論記錄：不能把年度目標當成現在就要扣的義務）。
+// 只有 once（累積儲蓄，例如紅包）才會被扣：算「已經存入」的部分 accumulated_amount——
+// 雖然錢還留在帳戶裡，但已經被你劃定用途，不是自由的錢；還沒存到的目標金額不算，
+// 那只是未來計畫，不是現在的負債。
+//
+// monthly（每月固定，例如房租）完全不扣（見討論記錄的修正）：原本的邏輯是「還沒付的部分
+// 先預扣」，但這假設不成立——使用者實際上是薪資入帳後直接繳掉這些固定支出，不是靠系統
+// 幫忙預留，預扣反而讓可運用金額顯得比實際上更緊。monthly 型現在純粹是追蹤/提醒用途
+// （進度條、下次扣款日提醒），完全不影響可運用金額的計算。
 function getAccountOutstandingCommitment(accountId) {
   return financeBudgetItems
-    .filter(b => b.account_id === accountId && b.active)
-    .reduce((sum, b) => {
-      if (b.cycle === "monthly") {
-        return sum + Math.max(b.planned_amount - getBudgetItemPaidAmount(b), 0);
-      }
-      return sum + (b.accumulated_amount || 0);
-    }, 0);
+    .filter(b => b.account_id === accountId && b.active && b.cycle !== "monthly")
+    .reduce((sum, b) => sum + (b.accumulated_amount || 0), 0);
 }
 
 // 帳戶可運用金額 = 帳戶實際餘額 － 這個帳戶「已經被劃定用途、不算自由」的錢（見上方定義）。
@@ -3797,17 +3795,8 @@ financeBudgetModalOverlay.addEventListener("click", function (event) {
   }
 });
 
-// 可運用資金摘要：平常收合，點一下展開，再點一下收回去。數字本身在 renderFinanceAccounts()
-// 裡就會同步更新，這裡只負責顯示/隱藏的開關（見討論記錄：拆掉分配總覽彈窗之後，
-// 這組數字要找地方安置，決定做成不佔畫面空間的收合標籤）。
-if (financeForecastToggle) {
-  financeForecastToggle.addEventListener("click", function () {
-    const isHidden = financeForecastPanel.style.display === "none";
-    financeForecastPanel.style.display = isHidden ? "block" : "none";
-    financeForecastToggle.classList.toggle("is-open", isHidden);
-  });
-}
-
+// 可運用資金摘要：改成固定顯示，不用點擊展開（見討論記錄：使用者希望一開畫面就看得到，
+// 不用多一個步驟）。數字本身在 renderFinanceAccounts() 裡就會同步更新。
 function refreshFinanceForecastPanel() {
   if (!financeForecastCurrent) return;
   const forecast = computeAvailableFundsForecast();
@@ -3949,14 +3938,14 @@ function buildFinanceBudgetDueDateBadge(item) {
   if (info.status !== "overdue") {
     const badge = document.createElement("span");
     badge.className = "finance-budget-due-badge is-" + info.status;
-    badge.textContent = `下次扣款 ${info.label}`;
+    badge.textContent = `${info.label} 扣款`;
     return badge;
   }
 
   const badge = document.createElement("button");
   badge.type = "button";
   badge.className = "finance-budget-due-badge finance-budget-due-badge-button is-overdue";
-  badge.textContent = `⚠️ 已過期 ${info.label}，點我確認`;
+  badge.textContent = `${info.label} 請確認是否已扣款`;
   badge.addEventListener("click", async function (event) {
     event.stopPropagation();
     const freqLabel = FINANCE_BUDGET_FREQUENCY_LABELS[item.frequency];
