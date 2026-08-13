@@ -1468,6 +1468,40 @@ button.finance-drag-handle {
     color: #22c55e;
 }
 
+/* 可運用資金面板：主數字跟下月提醒清單視覺上分開的兩個區塊，不再用「上面兩行相減
+   得出下面結果」的排法——那樣的版面會讓人誤以為下月固定分配真的有被扣掉
+   （見討論記錄的修正：顯示跟計算要分開，下月固定分配純粹是提醒用途）。 */
+.finance-forecast-main {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 14px;
+    color: #9ca3af;
+}
+
+.finance-forecast-main span:last-child {
+    font-size: 22px;
+    font-weight: 700;
+    color: #22c55e;
+}
+
+.finance-forecast-reminder {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 12px;
+    color: #6b7280;
+    border-top: 1px dashed #374151;
+    margin-top: 10px;
+    padding-top: 10px;
+}
+
+.finance-forecast-reminder span:last-child {
+    color: #9ca3af;
+    flex-shrink: 0;
+}
+
 .finance-budget-add-toggle {
     width: 100%;
     background: none;

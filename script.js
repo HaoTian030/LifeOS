@@ -1957,7 +1957,6 @@ const financeForecastToggle = document.getElementById("finance-forecast-toggle")
 const financeForecastPanel = document.getElementById("finance-forecast-panel");
 const financeForecastCurrent = document.getElementById("finance-forecast-current");
 const financeForecastMonthly = document.getElementById("finance-forecast-monthly");
-const financeForecastAvailable = document.getElementById("finance-forecast-available");
 const financeForecastToggleAmount = document.getElementById("finance-forecast-toggle-amount");
 const financeForecastToggleWarningIcon = document.getElementById("finance-forecast-toggle-warning-icon");
 
@@ -2460,10 +2459,10 @@ function getAccountAvailable(account) {
   return account.balance - getAccountOutstandingCommitment(account.id);
 }
 
-// 次月預覽／可運用資金：本月結存（所有「計入可運用資金池」的資產帳戶可運用金額加總）－ 下月固定分配，
-// 不需要手動輸入任何數字。count_in_available 預設 true，只有使用者自己關掉的帳戶才會被排除
-//（決策：不用帳戶類型文字猜測要不要排除，因為 account_type 是自由輸入，猜不準——
-// 使用者自己決定「這筆錢這個月算不算可以動用」，例如投資型保單這種只出不進的帳戶）。
+// 可運用資金：本月結存（所有「計入可運用資金池」的資產帳戶可運用金額加總）就是可運用資金本身，
+// 不再額外扣掉下月固定分配（見討論記錄的修正）——使用者的實際做法是薪資入帳當月就把每月固定
+// 項目繳清，不會留到下個月，所以「下月固定分配」只是給你參考「下個月有哪些項目要繳」的提醒清單，
+// 不該被拿去做任何加減計算，純顯示、不影響可運用資金這個數字。
 function computeAvailableFundsForecast() {
   const currentClosing = financeAccounts
     .filter(a => a.category === "asset" && a.count_in_available !== false)
@@ -2476,7 +2475,7 @@ function computeAvailableFundsForecast() {
   return {
     currentClosing,
     nextMonthFixed,
-    available: currentClosing - nextMonthFixed
+    available: currentClosing
   };
 }
 
@@ -3801,11 +3800,9 @@ function refreshFinanceForecastPanel() {
   if (!financeForecastCurrent) return;
   const forecast = computeAvailableFundsForecast();
   financeForecastCurrent.textContent = `$${Math.round(forecast.currentClosing).toLocaleString()}`;
-  financeForecastMonthly.textContent = `-$${Math.round(forecast.nextMonthFixed).toLocaleString()}`;
-  financeForecastAvailable.textContent = `$${Math.round(forecast.available).toLocaleString()}`;
+  financeForecastMonthly.textContent = `$${Math.round(forecast.nextMonthFixed).toLocaleString()}`;
 
-  // 可運用資金是負數時，收合標籤本身要有明顯警示，不用點開才知道透支了
-  // （見討論記錄：這是使用者測試後主動要求的，之前先記在待辦，這裡補上）。
+  // 可運用資金是負數時，收合標籤本身要有明顯警示，不用點開才知道透支了。
   const isNegative = forecast.available < 0;
   financeForecastToggle.classList.toggle("is-warning", isNegative);
   if (financeForecastToggleAmount) {
