@@ -115,6 +115,11 @@ h1{
     color: #f3f4f6;
 }
 
+/* 收合切換按鈕：手機版用不到（底部導覽列本來就精簡），只在桌面版顯示。 */
+.tab-nav-collapse-toggle {
+    display: none;
+}
+
 .empty-state {
     color: #9ca3af;
     font-size: 14px;
@@ -386,6 +391,60 @@ h1{
 
     .tab-nav-icon {
         font-size: 18px;
+    }
+
+    .tab-nav-collapse-toggle {
+        display: block;
+        align-self: flex-end;
+        background: none;
+        border: 1px solid #374151;
+        color: #9ca3af;
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        margin-bottom: 4px;
+    }
+
+    .tab-nav-collapse-toggle:hover {
+        color: #f3f4f6;
+        border-color: #4b5563;
+    }
+
+    /* 收合狀態：側邊欄縮窄成只剩圖示，給單螢幕作業、需要畫面空間時使用
+       （見討論記錄：雙螢幕在公司習慣了，家裡單螢幕會覺得側邊欄佔太多空間）。
+       預設是展開的，收合狀態只存在瀏覽器記憶體裡，重新整理網頁會回到展開——
+       使用者刻意要求不用記住，每次重新打開都重新決定要不要收合。 */
+    .tab-nav.is-collapsed {
+        width: 64px;
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+
+    .tab-nav.is-collapsed .tab-nav-label {
+        display: none;
+    }
+
+    .tab-nav.is-collapsed .tab-nav-button {
+        justify-content: center;
+        padding: 12px 8px;
+    }
+
+    .tab-nav.is-collapsed .tab-nav-collapse-toggle {
+        align-self: center;
+    }
+
+    body.tab-nav-is-collapsed {
+        margin-left: 104px;
+    }
+
+    body {
+        transition: margin-left 0.15s ease;
+    }
+
+    .tab-nav {
+        transition: width 0.15s ease;
     }
 
     body {
@@ -1474,12 +1533,19 @@ button.finance-drag-handle {
 .finance-forecast-main {
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
+    align-items: center;
     font-size: 14px;
     color: #9ca3af;
 }
 
-.finance-forecast-main span:last-child {
+.finance-forecast-main-label,
+.finance-forecast-main-value {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.finance-forecast-main-amount {
     font-size: 22px;
     font-weight: 700;
     color: #22c55e;
@@ -1791,49 +1857,29 @@ button.finance-drag-handle {
 
 /* ============ 財務 Phase 3 收合版面（放檔案最後） ============ */
 
-/* 可運用資金摘要標籤：平常收合、不佔畫面空間，點一下展開三個數字
-   （見討論記錄：分配總覽彈窗拆掉之後，這組摘要數字改成不常駐畫面的收合標籤）。 */
-.finance-forecast-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: #111827;
-    border: 1px solid #374151;
-    color: #d1d5db;
-    font-size: 13px;
-    line-height: 1;
-    padding: 6px 12px;
-    border-radius: 8px;
-    margin: 10px 0;
-}
-
-.finance-forecast-toggle span {
-    display: inline-flex;
-    align-items: center;
-    line-height: 1;
-}
-
 .finance-forecast-toggle-icon,
 .finance-forecast-toggle-warning-icon {
     font-size: 13px;
 }
 
-.finance-forecast-toggle.is-warning {
-    background: rgba(248, 113, 113, 0.15);
-    border-color: #f87171;
-    color: #fca5a5;
-    animation: financeBudgetOverPulse 1.4s ease-in-out infinite;
-}
-
-.finance-forecast-toggle-amount {
-    font-weight: 700;
-}
-
 .finance-forecast-panel {
     background: #111827;
+    border: 1px solid #374151;
     border-radius: 10px;
     padding: 12px 14px;
     margin-bottom: 12px;
+}
+
+/* 可運用資金是負數時，整個面板要有明顯警示（見討論記錄：合併成單一區塊之後，
+   警示狀態直接套在面板本身，不再有獨立的標題列可以套用）。 */
+.finance-forecast-panel.is-warning {
+    background: rgba(248, 113, 113, 0.1);
+    border-color: #f87171;
+    animation: financeBudgetOverPulse 1.4s ease-in-out infinite;
+}
+
+.finance-forecast-panel.is-warning .finance-forecast-main-amount {
+    color: #fca5a5;
 }
 
 /* 帳戶卡片展開/收合：不用獨立按鈕（那顆小方塊跟沒有分配項目的帳戶長得不一樣，

@@ -25,6 +25,7 @@
 
     
     <nav id="tab-nav" class="tab-nav">
+        <button type="button" id="tab-nav-collapse-toggle" class="tab-nav-collapse-toggle" title="收合側邊欄" aria-label="收合側邊欄">‹</button>
         <button type="button" class="tab-nav-button is-active" data-tab-target="todo-goal">
             <span class="tab-nav-icon">📋</span>
             <span class="tab-nav-label">待辦與目標</span>
@@ -174,16 +175,16 @@
                 <p id="finance-net-worth">淨資產：$0</p>
             </div>
 
-            <div id="finance-forecast-toggle" class="finance-forecast-toggle">
-                <span class="finance-forecast-toggle-icon">💰</span>
-                <span>可運用資金</span>
-                <span id="finance-forecast-toggle-amount" class="finance-forecast-toggle-amount"></span>
-                <span id="finance-forecast-toggle-warning-icon" class="finance-forecast-toggle-warning-icon" style="display:none;">⚠️</span>
-            </div>
             <div id="finance-forecast-panel" class="finance-forecast-panel">
                 <div class="finance-forecast-main">
-                    <span>可運用資金</span>
-                    <span id="finance-forecast-current">$0</span>
+                    <span class="finance-forecast-main-label">
+                        <span class="finance-forecast-toggle-icon">💰</span>
+                        <span>可運用資金</span>
+                    </span>
+                    <span class="finance-forecast-main-value">
+                        <span id="finance-forecast-current" class="finance-forecast-main-amount">$0</span>
+                        <span id="finance-forecast-toggle-warning-icon" class="finance-forecast-toggle-warning-icon" style="display:none;">⚠️</span>
+                    </span>
                 </div>
                 <div class="finance-forecast-reminder">
                     <span>📌 下月固定支出提醒（僅供參考，不影響上方金額）</span>

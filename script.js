@@ -165,6 +165,7 @@ supabaseClient.auth.getSession().then(({ data }) => {
 // 分頁邏輯只負責「顯示/隱藏哪些卡片」，不碰資料本身。
 // 每張卡片在 HTML 上用 data-tab 標記屬於哪個分頁，這裡切換時只是
 // 對照 data-tab 值決定 display，登入/登出、資料讀寫完全不受影響。
+const tabNav = document.getElementById("tab-nav");
 const tabNavButtons = document.querySelectorAll(".tab-nav-button");
 const tabCards = document.querySelectorAll("[data-tab]");
 
@@ -188,6 +189,22 @@ tabNavButtons.forEach(function (button) {
 });
 // 登入後預設落在「待辦與目標」分頁（Log #007 定案），HTML 上已經
 // 預設只有這個分頁的卡片沒有 display:none，這裡不需要在載入時額外呼叫。
+
+// 側邊欄收合（只在桌面版有作用，見 CSS 的 min-width:768px 那段）：預設展開，
+// 使用者可以自己收合成只剩圖示，省出畫面空間。狀態刻意只存在這個變數裡、
+// 不寫進 localStorage 或資料庫——使用者要求每次重新整理網頁都要重新展開，
+// 不用系統幫忙記住（見討論記錄：單螢幕作業時想要有彈性，不想被上次的選擇綁住）。
+const tabNavCollapseToggle = document.getElementById("tab-nav-collapse-toggle");
+if (tabNavCollapseToggle) {
+  tabNavCollapseToggle.addEventListener("click", function () {
+    const isCollapsed = tabNav.classList.toggle("is-collapsed");
+    document.body.classList.toggle("tab-nav-is-collapsed", isCollapsed);
+    tabNavCollapseToggle.textContent = isCollapsed ? "›" : "‹";
+    tabNavCollapseToggle.title = isCollapsed ? "展開側邊欄" : "收合側邊欄";
+    tabNavCollapseToggle.setAttribute("aria-label", isCollapsed ? "展開側邊欄" : "收合側邊欄");
+  });
+}
+
 // ===================================================================
 
 // ============N============o============t============i============o============n============
@@ -1952,13 +1969,11 @@ const financeBudgetList = document.getElementById("finance-budget-list");
 let financeBudgetTagPicker = null;
 let financeBudgetEditingId = null; // 目前正在編輯的分配項目 id，null 代表是「新增」模式
 
-// 主畫面的可運用資金摘要標籤：平常收合不佔畫面，點一下才展開看三個數字
-// （見討論記錄：分配總覽彈窗拆掉之後，這組摘要數字要找地方安置，決定收成隱藏式標籤）。
-const financeForecastToggle = document.getElementById("finance-forecast-toggle");
+// 主畫面的可運用資金摘要：固定顯示的單一區塊，不再是獨立的收合標題加內容兩層
+// （見討論記錄：兩層各自顯示一次「可運用資金」跟金額，固定顯示之後變成多餘的重複）。
 const financeForecastPanel = document.getElementById("finance-forecast-panel");
 const financeForecastCurrent = document.getElementById("finance-forecast-current");
 const financeForecastMonthly = document.getElementById("finance-forecast-monthly");
-const financeForecastToggleAmount = document.getElementById("finance-forecast-toggle-amount");
 const financeForecastToggleWarningIcon = document.getElementById("finance-forecast-toggle-warning-icon");
 
 // 主畫面帳戶卡片的展開狀態：記在這個集合裡，renderFinanceAccounts() 每次重畫都會照著這個集合
@@ -3831,14 +3846,10 @@ function refreshFinanceForecastPanel() {
   financeForecastCurrent.textContent = `$${Math.round(forecast.currentClosing).toLocaleString()}`;
   financeForecastMonthly.textContent = `$${Math.round(forecast.nextMonthFixed).toLocaleString()}`;
 
-  // 可運用資金是負數時，收合標籤本身要有明顯警示，不用點開才知道透支了。
+  // 可運用資金是負數時，整個面板要有明顯警示，不用另外找地方顯示
+  // （見討論記錄：合併成單一區塊之後，警示狀態直接套在面板本身上，不再有獨立的標題列）。
   const isNegative = forecast.available < 0;
-  financeForecastToggle.classList.toggle("is-warning", isNegative);
-  if (financeForecastToggleAmount) {
-    financeForecastToggleAmount.textContent = isNegative
-      ? `-$${Math.round(Math.abs(forecast.available)).toLocaleString()}`
-      : "";
-  }
+  financeForecastPanel.classList.toggle("is-warning", isNegative);
   if (financeForecastToggleWarningIcon) {
     financeForecastToggleWarningIcon.style.display = isNegative ? "inline-flex" : "none";
   }
