@@ -1854,38 +1854,25 @@ const expProgress = document.getElementById("exp-progress");
 
 // ============財============富============面============板============
 // Phase 1（資產總覽／淨資產快照）：帳戶資料改讀寫 Supabase 的 finance_accounts 表。
-// 每個帳戶分「資產」或「負債」（Facts，見 DD #001），並依分類細分類型：
-// 資產類型（現金/銀行存款/股票/ETF/基金/保單/加密貨幣/其他）
-// 負債類型（信用卡未繳/房貸/車貸/信貸/其他）
-// 對應 Development Log #010 決策四十一的分期規劃，分類設計對應 DD #001。
-// account_type 欄位本身是純文字，前端用 <input list> + <datalist> 呈現，
-// 依目前選的「資產/負債」動態切換要顯示哪一套建議清單，
-// 使用者可以直接輸入清單外的新類型，之後這個新類型也會自動出現在建議清單裡。
-// 收支記錄、預算比對、現金流拆分屬於 Phase 2/3，這裡先不處理。
+// 每個帳戶分「資產」或「負債」（Facts，見 DD #001）。
+// account_type 這個資料庫欄位還在（歷史資料不動、不做 migration），但表單跟主畫面
+// 都不再收集/顯示它——使用者反映這個欄位的資訊用途說明都能涵蓋，多一個欄位是
+// 不必要的複雜度（見討論記錄的修正）。
 let financeAccounts = [];
 // 給玩家面板用的即時淨資產（決策：Phase 1 先用「淨資產」取代原本假資料算出的「儲蓄率」，
 // 等 Phase 2 有真實收支資料後，只新增儲蓄率顯示，不覆蓋淨資產顯示）。
 let financeNetWorth = 0;
 
-// 資產類型／負債類型的預設建議清單，只是 datalist 的起始選項，不是強制限制。
-// 依照 DD #001：資產/負債（本質分類）與用途（人生角色）是不同層級，
-// 「資產類型」跟「負債類型」也是兩套獨立的語意，不應該共用同一份清單
-//（例如信用卡未繳是負債類型，不是資產類型的一種）。
-const ASSET_TYPE_PRESETS = ["現金", "銀行存款", "股票", "ETF", "基金", "保單", "加密貨幣", "其他"];
-const LIABILITY_TYPE_PRESETS = ["信用卡未繳", "房貸", "車貸", "信貸", "其他"];
-
 const DEMO_FINANCE_ACCOUNTS = [
-  { id: "demo-finance-1", name: "示範銀行", purpose: "負責日常生活開銷", category: "asset", account_type: "銀行存款", balance: 50000, display_order: 0 },
-  { id: "demo-finance-2", name: "示範券商", purpose: "股票投資帳戶", category: "asset", account_type: "股票", balance: 30000, display_order: 1 },
-  { id: "demo-finance-3", name: "示範保單", purpose: "儲蓄險", category: "asset", account_type: "保單", balance: 5000, display_order: 2 },
-  { id: "demo-finance-4", name: "示範信用卡", purpose: "信用卡消費", category: "liability", account_type: "信用卡未繳", balance: 3000, display_order: 0 }
+  { id: "demo-finance-1", name: "示範銀行", purpose: "負責日常生活開銷", category: "asset", balance: 50000, display_order: 0 },
+  { id: "demo-finance-2", name: "示範券商", purpose: "股票投資帳戶", category: "asset", balance: 30000, display_order: 1 },
+  { id: "demo-finance-3", name: "示範保單", purpose: "儲蓄險", category: "asset", balance: 5000, display_order: 2 },
+  { id: "demo-finance-4", name: "示範信用卡", purpose: "信用卡消費", category: "liability", balance: 3000, display_order: 0 }
 ];
 
 const financeNameInput = document.getElementById("finance-name-input");
 const financePurposeInput = document.getElementById("finance-purpose-input");
 const financeCategorySelect = document.getElementById("finance-category-select");
-const financeTypeInput = document.getElementById("finance-type-input");
-const financeTypeList = document.getElementById("finance-type-list");
 const financeBalanceInput = document.getElementById("finance-balance-input");
 const financeCountInAvailableInput = document.getElementById("finance-count-in-available-input");
 const financeAddButton = document.getElementById("finance-add-button");
@@ -2191,11 +2178,19 @@ financeTxTypeButtons.forEach(function (button) {
 // 記帳表單的帳戶下拉選單，直接動態抓目前所有帳戶（不維護固定清單），
 // 新增/刪除/編輯帳戶後都會重新呼叫這個函式同步（見 renderFinanceAccounts）。
 function refreshFinanceTxAccountOptions() {
+  // 順序要跟主畫面的資產/負債分組一致（先資產、依序，再負債、依序），不能直接照
+  // financeAccounts 原始陣列順序——那個陣列是資產負債混在一起排序的，會出現交叉順序
+  // 跟主畫面對不起來的情況（見討論記錄的修正）。
+  const orderedAccounts = [
+    ...financeAccounts.filter(function (a) { return a.category === "asset"; }),
+    ...financeAccounts.filter(function (a) { return a.category === "liability"; })
+  ];
+
   [financeTxAccountSelect, financeTxFromSelect, financeTxToSelect].forEach(function (selectEl) {
     if (!selectEl) return;
     const previousValue = selectEl.value;
     selectEl.innerHTML = "";
-    financeAccounts.forEach(function (account) {
+    orderedAccounts.forEach(function (account) {
       const option = document.createElement("option");
       option.value = account.id;
       option.textContent = account.name;
@@ -2829,36 +2824,6 @@ function initFinanceForGuest() {
   renderFinanceTxPresetButtons();
 }
 
-// 資產類型／負債類型建議清單 = 該分類的預設清單 + 使用者自己在「同一個分類」下輸入過、
-// 目前仍在用的類型（去重）。依照 DD #001，資產類型跟負債類型是兩套不同語意，
-// 不互相混用建議清單，所以要依照目前選的「資產/負債」分開組合。
-// 每次帳戶資料變動（新增/刪除/編輯/重新載入），或使用者切換「資產/負債」下拉選單時，都會重建一次。
-function refreshAccountTypeSuggestions(category) {
-  if (!financeTypeList || !financeTypeInput) return;
-
-  const presets = category === "liability" ? LIABILITY_TYPE_PRESETS : ASSET_TYPE_PRESETS;
-  const usedTypes = financeAccounts
-    .filter(account => account.category === category)
-    .map(account => account.account_type)
-    .filter(Boolean);
-  const suggestions = [...new Set([...presets, ...usedTypes])];
-
-  financeTypeList.innerHTML = "";
-  suggestions.forEach(function (type) {
-    const option = document.createElement("option");
-    option.value = type;
-    financeTypeList.appendChild(option);
-  });
-
-  financeTypeInput.placeholder = category === "liability"
-    ? "負債類型（可輸入新類型）"
-    : "資產類型（可輸入新類型）";
-}
-
-financeCategorySelect.addEventListener("change", function () {
-  refreshAccountTypeSuggestions(financeCategorySelect.value);
-});
-
 // 記帳同時連動帳戶餘額（本輪交接決策）。direction: 1 = 套用（新增交易時），
 // -1 = 還原（刪除交易時，把餘額變動加回去）。income/expense 只影響一個帳戶，
 // transfer 影響來源/目標兩個帳戶，方向剛好相反。
@@ -3088,7 +3053,7 @@ function buildFinanceTagPicker(initialValue) {
 
   const input = document.createElement("input");
   input.type = "text";
-  input.placeholder = "分類標籤";
+  input.placeholder = "類型標籤";
   input.value = initialValue || "";
 
   const toggleButton = document.createElement("button");
@@ -3402,6 +3367,12 @@ function buildFinanceTransactionItem(tx) {
   const item = document.createElement("div");
   item.className = "finance-item";
 
+  // 這裡要包一層 .finance-item-row 才能維持橫向排列——.finance-item 本身現在是
+  // block（帳戶卡片那輪為了讓展開面板往下疊而改的），沒有這層包裝的話 info/金額/
+  // 操作會變成直排，不是原本橫向的樣子（這是我這輪順手修正的一個遺漏）。
+  const rowWrap = document.createElement("div");
+  rowWrap.className = "finance-item-row";
+
   const info = document.createElement("div");
   info.className = "finance-item-info";
 
@@ -3428,8 +3399,22 @@ function buildFinanceTransactionItem(tx) {
   const sign = tx.type === "expense" ? "-" : tx.type === "income" ? "+" : "";
   amount.textContent = `${sign}$${tx.amount.toLocaleString()}`;
 
+  // 編輯/刪除平常很少用到（大部分時候只是查看），改成點「⋯」才展開，
+  // 不預設常駐佔位置（見討論記錄的要求）。
+  const moreToggle = document.createElement("button");
+  moreToggle.type = "button";
+  moreToggle.className = "finance-item-more-toggle";
+  moreToggle.textContent = "⋯";
+  moreToggle.title = "更多操作";
+  moreToggle.setAttribute("aria-label", "更多操作");
+
+  rowWrap.appendChild(info);
+  rowWrap.appendChild(amount);
+  rowWrap.appendChild(moreToggle);
+
   const actions = document.createElement("div");
-  actions.className = "finance-item-actions";
+  actions.className = "finance-item-actions finance-item-actions-collapsed";
+  actions.style.display = "none";
 
   const editButton = document.createElement("button");
   editButton.textContent = "編輯";
@@ -3449,8 +3434,13 @@ function buildFinanceTransactionItem(tx) {
   actions.appendChild(editButton);
   actions.appendChild(deleteButton);
 
-  item.appendChild(info);
-  item.appendChild(amount);
+  moreToggle.addEventListener("click", function (event) {
+    event.stopPropagation();
+    const isHidden = actions.style.display === "none";
+    actions.style.display = isHidden ? "flex" : "none";
+  });
+
+  item.appendChild(rowWrap);
   item.appendChild(actions);
 
   return item;
@@ -3469,8 +3459,11 @@ function buildFinanceAccountBudgetPanel(account, items) {
     const row = document.createElement("div");
     row.className = "finance-budget-item";
 
-    const topRow = document.createElement("div");
-    topRow.className = "finance-budget-item-row";
+    // 三行式排版：① 名稱+扣款日 / ② 狀態文字（獨立一行，不管有沒有操作按鈕都固定在這）
+    // / ③ 進度條 / ④ 操作按鈕（靠右，只有需要時才出現）——不管這個項目有沒有存入按鈕，
+    // 前三行的位置都不會被擠動，避免像之前那樣「加了按鈕整排就亂掉」（見討論記錄的修正）。
+    const headerRow = document.createElement("div");
+    headerRow.className = "finance-budget-item-header-row";
 
     const label = document.createElement("span");
     label.textContent = budgetItem.label;
@@ -3480,11 +3473,6 @@ function buildFinanceAccountBudgetPanel(account, items) {
     labelWrap.appendChild(label);
     const dueBadge = buildFinanceBudgetDueDateBadge(budgetItem);
     if (dueBadge) labelWrap.appendChild(dueBadge);
-
-    const statusWrap = document.createElement("div");
-    statusWrap.style.display = "flex";
-    statusWrap.style.alignItems = "center";
-    statusWrap.style.gap = "8px";
 
     const status = document.createElement("span");
     if (progress.isOver) {
@@ -3502,7 +3490,19 @@ function buildFinanceAccountBudgetPanel(account, items) {
       status.className = "finance-budget-item-status";
       status.textContent = `$${Math.round(progress.paid).toLocaleString()} / $${Math.round(budgetItem.planned_amount).toLocaleString()}`;
     }
-    statusWrap.appendChild(status);
+
+    headerRow.appendChild(labelWrap);
+    headerRow.appendChild(status);
+
+    const progressBar = document.createElement("div");
+    progressBar.className = "finance-budget-progress";
+    const progressFill = document.createElement("div");
+    progressFill.className = "finance-budget-progress-fill" + (progress.isOver && budgetItem.cycle === "monthly" ? " is-over" : "");
+    progressFill.style.width = `${Math.round(progress.ratio * 100)}%`;
+    progressBar.appendChild(progressFill);
+
+    row.appendChild(headerRow);
+    row.appendChild(progressBar);
 
     if (budgetItem.cycle !== "monthly") {
       // 有設定「每月固定存入金額」的話，一鍵直接用那個金額存入，不用每次手動輸入
@@ -3520,27 +3520,32 @@ function buildFinanceAccountBudgetPanel(account, items) {
         renderFinanceAccounts();
       }
 
+      const actionsRow = document.createElement("div");
+      actionsRow.className = "finance-budget-item-actions-row";
+
       const depositBtn = document.createElement("button");
       depositBtn.type = "button";
+      // 存入／其他金額統一都做成實心按鈕（參考記帳表單「新增紀錄」的風格），
+      // 不再是「一個按鈕＋一個底線文字連結」的混搭，視覺份量一致（見討論記錄）。
+      depositBtn.className = "finance-budget-deposit-button";
 
       if (budgetItem.monthly_deposit_amount) {
         depositBtn.textContent = `存入 $${Math.round(budgetItem.monthly_deposit_amount).toLocaleString()}`;
         depositBtn.addEventListener("click", async function () {
           await depositAmount(budgetItem.monthly_deposit_amount);
         });
-        statusWrap.appendChild(depositBtn);
+        actionsRow.appendChild(depositBtn);
 
-        // 保留手動輸入其他金額的彈性（例如這個月多存或少存），不強迫每次都用固定金額。
         const customBtn = document.createElement("button");
         customBtn.type = "button";
-        customBtn.className = "finance-budget-item-status-link";
+        customBtn.className = "finance-budget-deposit-button is-secondary";
         customBtn.textContent = "其他金額";
         customBtn.addEventListener("click", async function () {
           const raw = window.prompt(`要存入多少到「${budgetItem.label}」？（要更正可以輸入負數）`, "");
           if (raw === null) return;
           await depositAmount(Number(raw));
         });
-        statusWrap.appendChild(customBtn);
+        actionsRow.appendChild(customBtn);
       } else {
         depositBtn.textContent = "存入";
         depositBtn.addEventListener("click", async function () {
@@ -3548,22 +3553,12 @@ function buildFinanceAccountBudgetPanel(account, items) {
           if (raw === null) return;
           await depositAmount(Number(raw));
         });
-        statusWrap.appendChild(depositBtn);
+        actionsRow.appendChild(depositBtn);
       }
+
+      row.appendChild(actionsRow);
     }
 
-    topRow.appendChild(labelWrap);
-    topRow.appendChild(statusWrap);
-
-    const progressBar = document.createElement("div");
-    progressBar.className = "finance-budget-progress";
-    const progressFill = document.createElement("div");
-    progressFill.className = "finance-budget-progress-fill" + (progress.isOver && budgetItem.cycle === "monthly" ? " is-over" : "");
-    progressFill.style.width = `${Math.round(progress.ratio * 100)}%`;
-    progressBar.appendChild(progressFill);
-
-    row.appendChild(topRow);
-    row.appendChild(progressBar);
     panel.appendChild(row);
   });
 
@@ -3867,7 +3862,7 @@ function resetFinanceBudgetAddForm() {
   financeBudgetAmountInput.value = "";
   financeBudgetCycleSelect.value = "monthly";
   financeBudgetDueDateInput.value = "";
-  financeBudgetFrequencySelect.value = "";
+  financeBudgetFrequencySelect.value = "monthly";
   financeBudgetMonthlyDepositInput.value = "";
   financeBudgetTagSlot.innerHTML = "";
   financeBudgetTagPicker = buildFinanceTagPicker("");
@@ -4105,7 +4100,7 @@ function buildBudgetAccountGroupElement(account, items) {
       financeBudgetAmountInput.value = item.planned_amount;
       financeBudgetCycleSelect.value = item.cycle;
       financeBudgetDueDateInput.value = item.next_due_date || "";
-      financeBudgetFrequencySelect.value = item.frequency || "";
+      financeBudgetFrequencySelect.value = item.frequency || "monthly";
       financeBudgetMonthlyDepositInput.value = item.monthly_deposit_amount || "";
       financeBudgetTagPicker.input.value = item.tag || "";
       financeBudgetSaveButton.textContent = "儲存修改";
@@ -4319,22 +4314,14 @@ async function addFinanceAccount() {
   const name = financeNameInput.value.trim();
   const purpose = financePurposeInput.value.trim();
   const category = financeCategorySelect.value;
-  const accountType = financeTypeInput.value.trim();
   const balanceRaw = financeBalanceInput.value.trim();
   // 是否算進「本月可運用資金池」（次月預覽的加總基礎）。預設打勾＝計入，
-  // 使用者自己決定要不要關掉（例如投資型保單這種只出不進的帳戶），不用系統猜測帳戶類型
-  // （見討論記錄：account_type 是自由輸入文字，用文字猜測「該不該排除」猜不準）。
+  // 使用者自己決定要不要關掉（例如投資型保單這種只出不進的帳戶），不用系統猜測帳戶類型。
   const countInAvailable = financeCountInAvailableInput.checked;
 
   if (!name) {
     alert("請輸入帳戶名稱。");
     financeNameInput.focus();
-    return;
-  }
-
-  if (!accountType) {
-    alert("請輸入或選擇資產類型。");
-    financeTypeInput.focus();
     return;
   }
 
@@ -4354,7 +4341,6 @@ async function addFinanceAccount() {
         name,
         purpose,
         category,
-        account_type: accountType,
         balance,
         display_order: financeAccounts.length,
         count_in_available: countInAvailable
@@ -4384,7 +4370,6 @@ async function addFinanceAccount() {
       name,
       purpose,
       category,
-      account_type: accountType,
       balance,
       display_order: financeAccounts.length,
       count_in_available: countInAvailable
@@ -4393,7 +4378,6 @@ async function addFinanceAccount() {
 
   financeNameInput.value = "";
   financePurposeInput.value = "";
-  financeTypeInput.value = "";
   financeBalanceInput.value = "";
   financeCountInAvailableInput.checked = true;
   financeAddAccountSection.style.display = "none";
@@ -4462,18 +4446,6 @@ function buildFinanceAccountEditForm(account, onCancel) {
     categorySelect.appendChild(option);
   });
 
-  const typeInput = document.createElement("input");
-  typeInput.type = "text";
-  typeInput.setAttribute("list", "finance-type-list");
-  typeInput.value = account.account_type || "";
-
-  // 編輯表單開啟時，先依這個帳戶目前的分類（資產/負債）重建共用建議清單，
-  // 之後在表單內切換分類，也同步重建，維持跟新增表單一致的行為。
-  refreshAccountTypeSuggestions(account.category);
-  categorySelect.addEventListener("change", function () {
-    refreshAccountTypeSuggestions(categorySelect.value);
-  });
-
   const balanceInput = document.createElement("input");
   balanceInput.type = "number";
   balanceInput.value = account.balance;
@@ -4484,7 +4456,7 @@ function buildFinanceAccountEditForm(account, onCancel) {
   countInAvailableInput.type = "checkbox";
   countInAvailableInput.checked = account.count_in_available !== false;
   countInAvailableLabel.appendChild(countInAvailableInput);
-  countInAvailableLabel.appendChild(document.createTextNode("計入本月可運用資金"));
+  countInAvailableLabel.appendChild(document.createTextNode("計入可運用資金"));
 
   const saveButton = document.createElement("button");
   saveButton.textContent = "儲存";
@@ -4492,17 +4464,9 @@ function buildFinanceAccountEditForm(account, onCancel) {
     const trimmedName = nameInput.value.trim();
     const balanceRaw = balanceInput.value.trim();
 
-    const trimmedType = typeInput.value.trim();
-
     if (!trimmedName) {
       alert("帳戶名稱不能留空。");
       nameInput.focus();
-      return;
-    }
-
-    if (!trimmedType) {
-      alert("請輸入或選擇資產類型。");
-      typeInput.focus();
       return;
     }
 
@@ -4516,7 +4480,6 @@ function buildFinanceAccountEditForm(account, onCancel) {
       name: trimmedName,
       purpose: purposeInput.value.trim(),
       category: categorySelect.value,
-      account_type: trimmedType,
       balance: balanceRaw === "" ? 0 : Number(balanceRaw),
       count_in_available: countInAvailableInput.checked
     };
@@ -4528,7 +4491,6 @@ function buildFinanceAccountEditForm(account, onCancel) {
   const cancelButton = document.createElement("button");
   cancelButton.textContent = "取消";
   cancelButton.addEventListener("click", function () {
-    refreshAccountTypeSuggestions(financeCategorySelect.value);
     onCancel();
   });
 
@@ -4541,7 +4503,6 @@ function buildFinanceAccountEditForm(account, onCancel) {
   form.appendChild(nameInput);
   form.appendChild(purposeInput);
   form.appendChild(categorySelect);
-  form.appendChild(typeInput);
   form.appendChild(balanceInput);
   form.appendChild(countInAvailableLabel);
   form.appendChild(saveButton);
@@ -4602,7 +4563,7 @@ function buildFinanceAccountItem(account, manageMode) {
 
   const meta = document.createElement("div");
   meta.className = "finance-item-meta";
-  const metaText = [account.purpose, account.account_type].filter(Boolean).join(" · ");
+  const metaText = account.purpose || "";
   meta.textContent = metaText;
 
   if (account.category === "asset" && account.count_in_available === false) {
@@ -4665,6 +4626,7 @@ function buildFinanceAccountItem(account, manageMode) {
     });
   }
 
+  let editActions = null;
   if (manageMode) {
     const actions = document.createElement("div");
     actions.className = "finance-item-actions";
@@ -4676,6 +4638,23 @@ function buildFinanceAccountItem(account, manageMode) {
     dragHandle.title = "按住拖曳排序";
     dragHandle.setAttribute("aria-label", "按住拖曳排序");
     attachFinanceAccountDragHandlers(dragHandle, item, account);
+
+    // 編輯/刪除平常很少用到（帳戶建好之後大多不會再變動），把手常駐、
+    // 編輯/刪除改成點「⋯」才展開（見討論記錄的要求）。
+    const moreToggle = document.createElement("button");
+    moreToggle.type = "button";
+    moreToggle.className = "finance-item-more-toggle";
+    moreToggle.textContent = "⋯";
+    moreToggle.title = "更多操作";
+    moreToggle.setAttribute("aria-label", "更多操作");
+
+    actions.appendChild(dragHandle);
+    actions.appendChild(moreToggle);
+    rowWrap.appendChild(actions);
+
+    editActions = document.createElement("div");
+    editActions.className = "finance-item-actions finance-item-actions-collapsed";
+    editActions.style.display = "none";
 
     const editButton = document.createElement("button");
     editButton.textContent = "編輯";
@@ -4692,13 +4671,18 @@ function buildFinanceAccountItem(account, manageMode) {
       deleteFinanceAccount(account.id);
     });
 
-    actions.appendChild(dragHandle);
-    actions.appendChild(editButton);
-    actions.appendChild(deleteButton);
-    rowWrap.appendChild(actions);
+    editActions.appendChild(editButton);
+    editActions.appendChild(deleteButton);
+
+    moreToggle.addEventListener("click", function (event) {
+      event.stopPropagation();
+      const isHidden = editActions.style.display === "none";
+      editActions.style.display = isHidden ? "flex" : "none";
+    });
   }
 
   item.appendChild(rowWrap);
+  if (manageMode) item.appendChild(editActions);
   if (panel) item.appendChild(panel);
 
   return item;
@@ -4894,7 +4878,6 @@ function renderFinanceAccounts() {
   // 會跟畫面上的順序對不起來。
   financeAccounts.sort((a, b) => a.display_order - b.display_order);
 
-  refreshAccountTypeSuggestions(financeCategorySelect.value);
   refreshFinanceTxAccountOptions();
 
   const assets = financeAccounts.filter(account => account.category === "asset");

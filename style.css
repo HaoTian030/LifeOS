@@ -729,6 +729,26 @@ h1{
     flex-shrink: 0;
 }
 
+.finance-item-more-toggle {
+    background: none;
+    border: none;
+    color: #6b7280;
+    font-size: 16px;
+    line-height: 1;
+    padding: 4px 8px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.finance-item-more-toggle:hover {
+    color: #d1d5db;
+}
+
+.finance-item-actions-collapsed {
+    justify-content: flex-end;
+    margin-top: 8px;
+}
+
 .finance-item-balance input {
     width: 100px;
     padding: 4px 6px;
@@ -888,7 +908,7 @@ button.finance-drag-handle {
 
 .finance-tx-modal-list {
     overflow-y: auto;
-    max-height: 40vh;
+    max-height: 55vh;
 }
 
 /* ============ 財務：資產總覽版面調整 ============ */
@@ -1222,7 +1242,7 @@ button.finance-drag-handle {
     border-radius: 15px;
     padding: 20px;
     width: min(600px, 90vw);
-    max-height: 80vh;
+    max-height: 88vh;
     display: flex;
     flex-direction: column;
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
@@ -1470,10 +1490,10 @@ button.finance-drag-handle {
     font-size: 13px;
 }
 
-.finance-tx-preset-modal-actions {
-    display: flex;
-    gap: 10px;
-    margin-top: 14px;
+.finance-form-secondary-button {
+    background: none !important;
+    border: 1px solid #ef4444 !important;
+    color: #fca5a5 !important;
 }
 
 /* ============ 財務 Phase 3：分配總覽（放檔案最後，避免被前面同選擇器蓋掉） ============ */
@@ -1493,6 +1513,12 @@ button.finance-drag-handle {
 
 .modal-box-wide {
     width: min(720px, 92vw);
+}
+
+@media (min-width: 900px) {
+    .modal-box-wide {
+        width: min(860px, 92vw);
+    }
 }
 
 .finance-budget-forecast {
@@ -1566,6 +1592,17 @@ button.finance-drag-handle {
 .finance-forecast-reminder span:last-child {
     color: #9ca3af;
     flex-shrink: 0;
+    font-weight: 600;
+}
+
+@media (max-width: 480px) {
+    /* 手機版空間不夠，「僅供參考」那句長文字跟金額硬擠在同一行會擠壓對不齊，
+       改成上下堆疊（見討論記錄）。 */
+    .finance-forecast-reminder {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
 }
 
 .finance-budget-add-toggle {
@@ -1580,9 +1617,74 @@ button.finance-drag-handle {
     margin-bottom: 12px;
 }
 
+/* 新增分配項目表單：分組卡片風格（方案A），每個區塊有小標籤說明用途，
+   桌面版同一區塊內的欄位並排，手機版改成單欄堆疊避免擁擠
+   （見討論記錄：使用者喜歡分組卡片，但擔心手機版太擠，這裡用 media query 分開處理）。 */
+.finance-budget-add-form {
+    background: #111827;
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.finance-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.finance-form-group-label {
+    font-size: 11px;
+    color: #6b7280;
+}
+
+.finance-form-group-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.finance-form-group input,
+.finance-form-group select {
+    width: 100%;
+    background: #1f2937;
+    border: 1px solid #374151;
+    color: #f3f4f6;
+    font-size: 13px;
+    padding: 8px 10px;
+    border-radius: 6px;
+}
+
+.finance-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.finance-form-actions button {
+    background: #22c55e;
+    color: #052e12;
+    border: none;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 8px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+@media (min-width: 640px) {
+    /* 桌面版夠寬，同一區塊內的欄位並排顯示，比手機版單欄堆疊更緊湊。 */
+    .finance-form-group-row {
+        flex-direction: row;
+    }
+}
+
 #finance-budget-list {
     overflow-y: auto;
-    max-height: 50vh;
+    max-height: 58vh;
 }
 
 .finance-budget-account-group {
@@ -1760,6 +1862,11 @@ button.finance-drag-handle {
     .finance-budget-column {
         flex: 1;
         min-width: 0;
+    }
+
+    /* 下月固定支出提醒的數字桌面版太小，放大一點（見討論記錄）。 */
+    .finance-forecast-reminder span:last-child {
+        font-size: 15px;
     }
 }
 
@@ -1944,41 +2051,71 @@ button.finance-drag-handle {
 }
 
 .finance-item-budget-panel .finance-budget-item {
-    margin-bottom: 10px;
+    margin-bottom: 12px;
 }
 
 .finance-item-budget-panel .finance-budget-item:last-child {
     margin-bottom: 0;
 }
 
-.finance-item-budget-panel .finance-budget-item-status button {
+/* 標頭行：名稱+扣款日徽章在左，狀態文字在右，固定在這一行，
+   不管這個項目底下有沒有操作按鈕都不會被擠動（見討論記錄的排版修正）。 */
+.finance-budget-item-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+}
+
+.finance-item-budget-panel .finance-budget-item-status {
+    font-size: 15px;
+    font-weight: 600;
+    color: #d1d5db;
+}
+
+.finance-item-budget-panel .finance-budget-item-status.is-done {
+    color: #22c55e;
+}
+
+.finance-item-budget-panel .finance-budget-item-status.is-over {
+    color: #fca5a5;
+}
+
+/* 操作按鈕行：獨立在進度條下面，靠右對齊，只有需要操作的項目才會出現這一行。 */
+.finance-budget-item-actions-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+/* 存入／其他金額統一做成實心按鈕（參考記帳表單「新增紀錄」的風格），主要動作
+   用綠色實心、次要動作（其他金額）用邊框樣式，兩個視覺份量一致，不再是
+   「一個按鈕＋一個底線文字連結」的混搭（見討論記錄）。 */
+.finance-budget-deposit-button {
+    background: #22c55e;
+    color: #052e12;
+    border: none;
+    font-weight: 600;
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.finance-budget-deposit-button.is-secondary {
     background: none;
     border: 1px solid #374151;
     color: #9ca3af;
-    font-size: 11px;
-    padding: 2px 8px;
-    border-radius: 6px;
-    cursor: pointer;
-    margin-left: 6px;
+    font-weight: 500;
 }
 
-/* 「其他金額」是設定了每月固定存入金額之後的次要選項（一次性調整用），
-   刻意做得比主要的「存入 $X」按鈕低調，不搶主要動作的視覺焦點。 */
-.finance-budget-item-status-link {
-    background: none !important;
-    border: none !important;
-    color: #6b7280 !important;
-    text-decoration: underline;
-    font-size: 11px;
-    padding: 2px 4px !important;
-}
-
-.finance-budget-item-status-link:hover {
-    color: #9ca3af !important;
-}
-
-.finance-item-budget-panel-floating .finance-budget-item-row {
-    flex-wrap: wrap;
+.finance-budget-deposit-button.is-secondary:hover {
+    color: #d1d5db;
+    border-color: #4b5563;
 }
 
 /* 🎯 管理分配項目彈窗：現在只負責結構調整，不再顯示進度條，

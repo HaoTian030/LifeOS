@@ -162,10 +162,10 @@
             <div class="finance-card-header">
                 <h2>💰 資產總覽</h2>
                 <div class="finance-card-header-actions">
-                    <button id="finance-budget-open-button" type="button" class="finance-icon-button" title="管理資金分配資料庫" aria-label="管理資金分配資料庫">🎯</button>
-                    <button id="finance-tx-detail-open-button" type="button" class="finance-icon-button" title="查看記帳明細" aria-label="查看記帳明細">📜</button>
                     <button id="finance-add-account-toggle" type="button" class="finance-icon-button" title="新增帳戶" aria-label="新增帳戶">➕</button>
                     <button id="finance-accounts-manage-toggle" type="button" class="finance-icon-button" title="管理帳戶" aria-label="管理帳戶">🔧</button>
+                    <button id="finance-budget-open-button" type="button" class="finance-icon-button" title="管理資金分配資料庫" aria-label="管理資金分配資料庫">🎯</button>
+                    <button id="finance-tx-detail-open-button" type="button" class="finance-icon-button" title="查看記帳明細" aria-label="查看記帳明細">📜</button>
                 </div>
             </div>
 
@@ -178,7 +178,7 @@
             <div id="finance-forecast-panel" class="finance-forecast-panel">
                 <div class="finance-forecast-main">
                     <span class="finance-forecast-main-label">
-                        <span class="finance-forecast-toggle-icon">💰</span>
+                        <span class="finance-forecast-toggle-icon">💵</span>
                         <span>可運用資金</span>
                     </span>
                     <span class="finance-forecast-main-value">
@@ -193,18 +193,16 @@
             </div>
 
             <div class="finance-input-row" id="finance-add-account-section" style="display:none;">
-                <input id="finance-name-input" type="text" placeholder="帳戶名稱（例如：土地銀行）">
-                <input id="finance-purpose-input" type="text" placeholder="用途（例如：負責日常生活開銷）">
+                <input id="finance-name-input" type="text" placeholder="帳戶名稱">
+                <input id="finance-purpose-input" type="text" placeholder="用途說明">
                 <select id="finance-category-select">
                     <option value="asset">資產</option>
                     <option value="liability">負債</option>
                 </select>
-                <input id="finance-type-input" type="text" list="finance-type-list" placeholder="資產類型（可輸入新類型）">
-                <datalist id="finance-type-list"></datalist>
                 <input id="finance-balance-input" type="number" placeholder="金額">
                 <label class="finance-count-in-available-label">
                     <input id="finance-count-in-available-input" type="checkbox" checked>
-                    計入本月可運用資金
+                    計入可運用資金
                 </label>
                 <button id="finance-add-button" type="button">新增帳戶</button>
             </div>
@@ -286,9 +284,9 @@
 
                 <input id="finance-tx-amount-input" type="number" placeholder="金額">
                 <input id="finance-tx-date-input" type="date">
-                <input id="finance-tx-category-input" type="text" placeholder="用途備註（自由輸入）">
+                <input id="finance-tx-category-input" type="text" placeholder="用途說明">
                 <div id="finance-tx-tag-wrap" class="finance-tx-tag-wrap">
-                    <input id="finance-tx-tag-input" type="text" autocomplete="off" placeholder="分類標籤（可輸入，如：住家/個人/信用卡）">
+                    <input id="finance-tx-tag-input" type="text" autocomplete="off" placeholder="類型標籤（自由輸入）">
                     <button id="finance-tx-tag-toggle" type="button" class="finance-tx-tag-toggle" title="選擇曾用過的標籤" aria-label="選擇曾用過的標籤">▾</button>
                     <div id="finance-tx-tag-dropdown" class="finance-tx-tag-dropdown" style="display:none;"></div>
                 </div>
@@ -329,33 +327,43 @@
                 <button type="button" class="finance-tx-type-button" data-tx-type="transfer">🔁 轉帳</button>
             </div>
 
-            <div class="finance-tx-input-row">
-                <input id="finance-tx-preset-label-input" type="text" placeholder="快捷名稱（例如：房租）">
+            <div class="finance-budget-add-form">
+                <div class="finance-form-group">
+                    <span class="finance-form-group-label">基本資料</span>
+                    <div class="finance-form-group-row">
+                        <input id="finance-tx-preset-label-input" type="text" placeholder="快捷名稱">
 
-                <div id="finance-tx-preset-single-account-field" class="finance-tx-field-group">
-                    <select id="finance-tx-preset-account-select"></select>
+                        <div id="finance-tx-preset-single-account-field" class="finance-tx-field-group">
+                            <select id="finance-tx-preset-account-select"></select>
+                        </div>
+
+                        <div id="finance-tx-preset-transfer-fields" class="finance-tx-field-group finance-tx-transfer-fields" style="display:none;">
+                            <select id="finance-tx-preset-from-select"></select>
+                            <span class="finance-tx-arrow">→</span>
+                            <select id="finance-tx-preset-to-select"></select>
+                        </div>
+                    </div>
                 </div>
 
-                <div id="finance-tx-preset-transfer-fields" class="finance-tx-field-group finance-tx-transfer-fields" style="display:none;">
-                    <select id="finance-tx-preset-from-select"></select>
-                    <span class="finance-tx-arrow">→</span>
-                    <select id="finance-tx-preset-to-select"></select>
+                <div class="finance-form-group">
+                    <span class="finance-form-group-label">金額與標籤</span>
+                    <div class="finance-form-group-row">
+                        <input id="finance-tx-preset-amount-input" type="number" placeholder="金額">
+                        <input id="finance-tx-preset-category-input" type="text" placeholder="用途說明（可留空）">
+                    </div>
+                    <div id="finance-tx-preset-tag-slot"></div>
                 </div>
 
-                <input id="finance-tx-preset-amount-input" type="number" placeholder="金額（例如：5000）">
-                <input id="finance-tx-preset-category-input" type="text" placeholder="用途備註（自由輸入，可留空）">
-                <div id="finance-tx-preset-tag-slot"></div>
-            </div>
-
-            <div class="finance-tx-preset-modal-actions">
-                <button id="finance-tx-preset-save-button" type="button">儲存快捷</button>
-                <button id="finance-tx-preset-delete-button" type="button" style="display:none;">刪除這個快捷</button>
+                <div class="finance-form-actions">
+                    <button id="finance-tx-preset-save-button" type="button">儲存快捷</button>
+                    <button id="finance-tx-preset-delete-button" type="button" class="finance-form-secondary-button" style="display:none;">刪除這個快捷</button>
+                </div>
             </div>
         </div>
     </div>
 
     <div id="finance-tx-detail-modal-overlay" class="modal-overlay" style="display:none;">
-        <div class="modal-box">
+        <div class="modal-box modal-box-wide">
             <div class="modal-header">
                 <h2>📜 記帳明細</h2>
                 <button id="finance-tx-detail-modal-close" type="button">✕</button>
@@ -387,31 +395,44 @@
 
             <button id="finance-budget-add-toggle" type="button" class="finance-budget-add-toggle">＋ 新增分配項目</button>
 
-            <div id="finance-budget-add-section" class="finance-input-row" style="display:none;">
-                <select id="finance-budget-account-select"></select>
-                <input id="finance-budget-label-input" type="text" placeholder="用途名稱（例如：三商壽險保費）">
-                <input id="finance-budget-amount-input" type="number" placeholder="應分配金額">
-                <div id="finance-budget-tag-slot"></div>
-                <select id="finance-budget-cycle-select">
-                    <option value="monthly">每月固定（每月重新歸零，例如房租、保費）</option>
-                    <option value="once">累積儲蓄（存到達標為止，例如紅包、年繳保費）</option>
-                </select>
-                <label class="finance-budget-due-date-label">
-                    下次扣款日（選填，累積儲蓄型可以用來提醒自己）
-                    <input id="finance-budget-due-date-input" type="date">
-                </label>
-                <select id="finance-budget-frequency-select">
-                    <option value="">扣款頻率（沒設定就不會自動推算下次日期）</option>
-                    <option value="monthly">月繳</option>
-                    <option value="quarterly">季繳</option>
-                    <option value="semiannual">半年繳</option>
-                    <option value="annual">年繳</option>
-                </select>
-                <label class="finance-budget-due-date-label">
-                    每月固定存入金額（選填，累積儲蓄型設定後，主畫面按存入會自動帶入這個金額）
-                    <input id="finance-budget-monthly-deposit-input" type="number" placeholder="例如：1700">
-                </label>
-                <button id="finance-budget-save-button" type="button">新增</button>
+            <div id="finance-budget-add-section" class="finance-budget-add-form" style="display:none;">
+                <div class="finance-form-group">
+                    <span class="finance-form-group-label">基本資料</span>
+                    <div class="finance-form-group-row">
+                        <select id="finance-budget-account-select"></select>
+                        <input id="finance-budget-label-input" type="text" placeholder="用途說明">
+                    </div>
+                    <div id="finance-budget-tag-slot"></div>
+                </div>
+
+                <div class="finance-form-group">
+                    <span class="finance-form-group-label">金額與週期</span>
+                    <div class="finance-form-group-row">
+                        <input id="finance-budget-amount-input" type="number" placeholder="應分配金額">
+                        <select id="finance-budget-cycle-select">
+                            <option value="monthly">每月固定</option>
+                            <option value="once">累積儲蓄</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="finance-form-group">
+                    <span class="finance-form-group-label">扣款提醒（選填）</span>
+                    <div class="finance-form-group-row">
+                        <input id="finance-budget-due-date-input" type="date">
+                        <select id="finance-budget-frequency-select">
+                            <option value="monthly">月繳</option>
+                            <option value="quarterly">季繳</option>
+                            <option value="semiannual">半年繳</option>
+                            <option value="annual">年繳</option>
+                        </select>
+                    </div>
+                    <input id="finance-budget-monthly-deposit-input" type="number" placeholder="金額">
+                </div>
+
+                <div class="finance-form-actions">
+                    <button id="finance-budget-save-button" type="button">新增</button>
+                </div>
             </div>
 
             <p id="finance-budget-empty" class="empty-state">還沒有任何分配項目，用上面的表單建立第一筆吧。</p>
