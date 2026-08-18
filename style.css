@@ -1572,7 +1572,7 @@ button.finance-drag-handle {
 }
 
 .finance-forecast-main-amount {
-    font-size: 22px;
+    font-size: 32px;
     font-weight: 700;
     color: #22c55e;
 }
@@ -1650,12 +1650,10 @@ button.finance-drag-handle {
 .finance-form-group input,
 .finance-form-group select {
     width: 100%;
-    background: #1f2937;
-    border: 1px solid #374151;
-    color: #f3f4f6;
+    border: none;
     font-size: 13px;
     padding: 8px 10px;
-    border-radius: 6px;
+    border-radius: 8px;
 }
 
 .finance-form-actions {
@@ -2082,6 +2080,28 @@ button.finance-drag-handle {
 
 .finance-item-budget-panel .finance-budget-item-status.is-over {
     color: #fca5a5;
+}
+
+.finance-budget-item-status-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* 存入操作的收合切換按鈕：預設隱藏操作按鈕列，點這個才展開，
+   避免每個項目都攤開存入/其他金額，讓整個面板變得很長（見討論記錄的要求）。 */
+.finance-budget-item-toggle-actions {
+    background: none;
+    border: none;
+    font-size: 13px;
+    line-height: 1;
+    padding: 2px 4px;
+    cursor: pointer;
+    opacity: 0.6;
+}
+
+.finance-budget-item-toggle-actions:hover {
+    opacity: 1;
 }
 
 /* 操作按鈕行：獨立在進度條下面，靠右對齊，只有需要操作的項目才會出現這一行。 */

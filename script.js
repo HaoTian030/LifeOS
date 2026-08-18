@@ -3491,8 +3491,12 @@ function buildFinanceAccountBudgetPanel(account, items) {
       status.textContent = `$${Math.round(progress.paid).toLocaleString()} / $${Math.round(budgetItem.planned_amount).toLocaleString()}`;
     }
 
+    const statusGroup = document.createElement("div");
+    statusGroup.className = "finance-budget-item-status-group";
+    statusGroup.appendChild(status);
+
     headerRow.appendChild(labelWrap);
-    headerRow.appendChild(status);
+    headerRow.appendChild(statusGroup);
 
     const progressBar = document.createElement("div");
     progressBar.className = "finance-budget-progress";
@@ -3505,6 +3509,16 @@ function buildFinanceAccountBudgetPanel(account, items) {
     row.appendChild(progressBar);
 
     if (budgetItem.cycle !== "monthly") {
+      // 存入／其他金額改成收合、預設隱藏——攤開所有項目的操作按鈕會讓整個面板拉得很長，
+      // 失去「一眼看完全部項目」的效果，改成點小按鈕才展開（見討論記錄的要求）。
+      const toggleActionsBtn = document.createElement("button");
+      toggleActionsBtn.type = "button";
+      toggleActionsBtn.className = "finance-budget-item-toggle-actions";
+      toggleActionsBtn.textContent = "💰";
+      toggleActionsBtn.title = "存入";
+      toggleActionsBtn.setAttribute("aria-label", "存入");
+      statusGroup.appendChild(toggleActionsBtn);
+
       // 有設定「每月固定存入金額」的話，一鍵直接用那個金額存入，不用每次手動輸入
       // （見討論記錄：紅包這種每月存一樣金額的項目，不想每次自己心算/輸入）。
       // 沒設定的維持原本「按了才跳出輸入視窗」的行為。
@@ -3522,6 +3536,13 @@ function buildFinanceAccountBudgetPanel(account, items) {
 
       const actionsRow = document.createElement("div");
       actionsRow.className = "finance-budget-item-actions-row";
+      actionsRow.style.display = "none";
+
+      toggleActionsBtn.addEventListener("click", function (event) {
+        event.stopPropagation();
+        const isHidden = actionsRow.style.display === "none";
+        actionsRow.style.display = isHidden ? "flex" : "none";
+      });
 
       const depositBtn = document.createElement("button");
       depositBtn.type = "button";
