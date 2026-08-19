@@ -1960,7 +1960,7 @@ let financeBudgetEditingId = null; // 目前正在編輯的分配項目 id，nul
 // （見討論記錄：兩層各自顯示一次「可運用資金」跟金額，固定顯示之後變成多餘的重複）。
 const financeForecastPanel = document.getElementById("finance-forecast-panel");
 const financeForecastCurrent = document.getElementById("finance-forecast-current");
-const financeForecastMonthly = document.getElementById("finance-forecast-monthly");
+const financeForecastReminderList = document.getElementById("finance-forecast-reminder-list");
 const financeForecastToggleWarningIcon = document.getElementById("finance-forecast-toggle-warning-icon");
 
 // 主畫面帳戶卡片的展開狀態：記在這個集合裡，renderFinanceAccounts() 每次重畫都會照著這個集合
@@ -2492,6 +2492,37 @@ function computeAvailableFundsForecast() {
     nextMonthFixed,
     available: currentClosing
   };
+}
+
+// 下月固定支出提醒，依帳戶分組列出小計（見討論記錄的修正：原本只有一個總數，
+// 完全沒參考價值，因為累積儲蓄型沒算進去，看了還是不知道下個月要轉多少錢到哪個帳戶）。
+// 每月固定型：算應分配金額（本來就是每月要繳的數字）。
+// 累積儲蓄型：只有設定過「每月固定存入金額」的才算入，用那個金額——沒設定代表
+// 存入節奏不固定（例如偶發性存款），不該被當成「下個月固定要轉的錢」列進提醒，
+// 不用文字或猜測去判斷，直接看有沒有設定這個欄位就好。
+function computeNextMonthFixedByAccount() {
+  const totals = {};
+
+  financeBudgetItems
+    .filter(b => b.active)
+    .forEach(function (b) {
+      let amount = 0;
+      if (b.cycle === "monthly") {
+        amount = b.planned_amount;
+      } else if (b.monthly_deposit_amount) {
+        amount = b.monthly_deposit_amount;
+      }
+      if (amount > 0) {
+        totals[b.account_id] = (totals[b.account_id] || 0) + amount;
+      }
+    });
+
+  return Object.keys(totals)
+    .map(function (accountId) {
+      const account = financeAccounts.find(function (a) { return a.id === accountId; });
+      return { accountId: accountId, name: account ? account.name : "未知帳戶", amount: totals[accountId] };
+    })
+    .sort(function (a, b) { return b.amount - a.amount; });
 }
 
 async function addFinanceTxPreset(preset) {
@@ -3459,12 +3490,9 @@ function buildFinanceAccountBudgetPanel(account, items) {
     const row = document.createElement("div");
     row.className = "finance-budget-item";
 
-    // 三行式排版：① 名稱+扣款日 / ② 狀態文字（獨立一行，不管有沒有操作按鈕都固定在這）
-    // / ③ 進度條 / ④ 操作按鈕（靠右，只有需要時才出現）——不管這個項目有沒有存入按鈕，
-    // 前三行的位置都不會被擠動，避免像之前那樣「加了按鈕整排就亂掉」（見討論記錄的修正）。
-    const headerRow = document.createElement("div");
-    headerRow.className = "finance-budget-item-header-row";
-
+    // 兩行式排版：① 名稱+扣款日徽章 / ② 狀態文字+存入按鈕 / ③ 進度條——
+    // 每一行各自佔滿寬度，不共用同一個 flex row 靠自動換行排版，
+    // 不管內容長短，每個項目的排版都固定一致（見討論記錄的修正）。
     const label = document.createElement("span");
     label.textContent = budgetItem.label;
 
@@ -3473,6 +3501,10 @@ function buildFinanceAccountBudgetPanel(account, items) {
     labelWrap.appendChild(label);
     const dueBadge = buildFinanceBudgetDueDateBadge(budgetItem);
     if (dueBadge) labelWrap.appendChild(dueBadge);
+
+    const nameRow = document.createElement("div");
+    nameRow.className = "finance-budget-item-name-row";
+    nameRow.appendChild(labelWrap);
 
     const status = document.createElement("span");
     if (progress.isOver) {
@@ -3491,38 +3523,35 @@ function buildFinanceAccountBudgetPanel(account, items) {
       status.textContent = `$${Math.round(progress.paid).toLocaleString()} / $${Math.round(budgetItem.planned_amount).toLocaleString()}`;
     }
 
-    const statusGroup = document.createElement("div");
-    statusGroup.className = "finance-budget-item-status-group";
-    statusGroup.appendChild(status);
-
-    headerRow.appendChild(labelWrap);
-    headerRow.appendChild(statusGroup);
-
-    const progressBar = document.createElement("div");
-    progressBar.className = "finance-budget-progress";
-    const progressFill = document.createElement("div");
-    progressFill.className = "finance-budget-progress-fill" + (progress.isOver && budgetItem.cycle === "monthly" ? " is-over" : "");
-    progressFill.style.width = `${Math.round(progress.ratio * 100)}%`;
-    progressBar.appendChild(progressFill);
-
-    row.appendChild(headerRow);
-    row.appendChild(progressBar);
+    const statusRow = document.createElement("div");
+    statusRow.className = "finance-budget-item-status-row";
+    statusRow.appendChild(status);
 
     if (budgetItem.cycle !== "monthly") {
-      // 存入／其他金額改成收合、預設隱藏——攤開所有項目的操作按鈕會讓整個面板拉得很長，
-      // 失去「一眼看完全部項目」的效果，改成點小按鈕才展開（見討論記錄的要求）。
-      const toggleActionsBtn = document.createElement("button");
-      toggleActionsBtn.type = "button";
-      toggleActionsBtn.className = "finance-budget-item-toggle-actions";
-      toggleActionsBtn.textContent = "💰";
-      toggleActionsBtn.title = "存入";
-      toggleActionsBtn.setAttribute("aria-label", "存入");
-      statusGroup.appendChild(toggleActionsBtn);
+      // 簡化：只留 💰 一個按鈕，點了直接存入——有設定「每月固定存入金額」就直接用
+      // 那個金額，不用再跳出視窗；沒設定的才問金額。拿掉原本的「其他金額」跟
+      // 展開/收合機制，真的要修正金額，直接去管理資金分配資料庫調整設定即可，
+      // 不需要在主畫面留一個次要選項（見討論記錄的簡化決定，順便解決了
+      // 之前「點開之後點外部不會自動收合」的問題——現在根本沒有「展開狀態」了）。
+      const depositBtn = document.createElement("button");
+      depositBtn.type = "button";
+      depositBtn.className = "finance-budget-item-toggle-actions";
+      depositBtn.textContent = "💰";
+      depositBtn.title = budgetItem.monthly_deposit_amount
+        ? `存入 $${Math.round(budgetItem.monthly_deposit_amount).toLocaleString()}`
+        : "存入";
+      depositBtn.setAttribute("aria-label", depositBtn.title);
 
-      // 有設定「每月固定存入金額」的話，一鍵直接用那個金額存入，不用每次手動輸入
-      // （見討論記錄：紅包這種每月存一樣金額的項目，不想每次自己心算/輸入）。
-      // 沒設定的維持原本「按了才跳出輸入視窗」的行為。
-      async function depositAmount(delta) {
+      depositBtn.addEventListener("click", async function (event) {
+        event.stopPropagation();
+        let delta;
+        if (budgetItem.monthly_deposit_amount) {
+          delta = budgetItem.monthly_deposit_amount;
+        } else {
+          const raw = window.prompt(`要存入多少到「${budgetItem.label}」？（要更正可以輸入負數）`, "");
+          if (raw === null) return;
+          delta = Number(raw);
+        }
         if (isNaN(delta) || delta === 0) {
           alert("請輸入不是 0 的數字。");
           return;
@@ -3532,53 +3561,21 @@ function buildFinanceAccountBudgetPanel(account, items) {
         if (!ok) return;
         expandedFinanceAccountIds.add(account.id); // 存完之後重畫整個畫面，這裡確保這張卡片還是展開的
         renderFinanceAccounts();
-      }
-
-      const actionsRow = document.createElement("div");
-      actionsRow.className = "finance-budget-item-actions-row";
-      actionsRow.style.display = "none";
-
-      toggleActionsBtn.addEventListener("click", function (event) {
-        event.stopPropagation();
-        const isHidden = actionsRow.style.display === "none";
-        actionsRow.style.display = isHidden ? "flex" : "none";
       });
 
-      const depositBtn = document.createElement("button");
-      depositBtn.type = "button";
-      // 存入／其他金額統一都做成實心按鈕（參考記帳表單「新增紀錄」的風格），
-      // 不再是「一個按鈕＋一個底線文字連結」的混搭，視覺份量一致（見討論記錄）。
-      depositBtn.className = "finance-budget-deposit-button";
-
-      if (budgetItem.monthly_deposit_amount) {
-        depositBtn.textContent = `存入 $${Math.round(budgetItem.monthly_deposit_amount).toLocaleString()}`;
-        depositBtn.addEventListener("click", async function () {
-          await depositAmount(budgetItem.monthly_deposit_amount);
-        });
-        actionsRow.appendChild(depositBtn);
-
-        const customBtn = document.createElement("button");
-        customBtn.type = "button";
-        customBtn.className = "finance-budget-deposit-button is-secondary";
-        customBtn.textContent = "其他金額";
-        customBtn.addEventListener("click", async function () {
-          const raw = window.prompt(`要存入多少到「${budgetItem.label}」？（要更正可以輸入負數）`, "");
-          if (raw === null) return;
-          await depositAmount(Number(raw));
-        });
-        actionsRow.appendChild(customBtn);
-      } else {
-        depositBtn.textContent = "存入";
-        depositBtn.addEventListener("click", async function () {
-          const raw = window.prompt(`要存入多少到「${budgetItem.label}」？（要更正可以輸入負數）`, "");
-          if (raw === null) return;
-          await depositAmount(Number(raw));
-        });
-        actionsRow.appendChild(depositBtn);
-      }
-
-      row.appendChild(actionsRow);
+      statusRow.appendChild(depositBtn);
     }
+
+    row.appendChild(nameRow);
+    row.appendChild(statusRow);
+
+    const progressBar = document.createElement("div");
+    progressBar.className = "finance-budget-progress";
+    const progressFill = document.createElement("div");
+    progressFill.className = "finance-budget-progress-fill" + (progress.isOver && budgetItem.cycle === "monthly" ? " is-over" : "");
+    progressFill.style.width = `${Math.round(progress.ratio * 100)}%`;
+    progressBar.appendChild(progressFill);
+    row.appendChild(progressBar);
 
     panel.appendChild(row);
   });
@@ -3860,7 +3857,30 @@ function refreshFinanceForecastPanel() {
   if (!financeForecastCurrent) return;
   const forecast = computeAvailableFundsForecast();
   financeForecastCurrent.textContent = `$${Math.round(forecast.currentClosing).toLocaleString()}`;
-  financeForecastMonthly.textContent = `$${Math.round(forecast.nextMonthFixed).toLocaleString()}`;
+
+  if (financeForecastReminderList) {
+    financeForecastReminderList.innerHTML = "";
+    const byAccount = computeNextMonthFixedByAccount();
+    if (byAccount.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "finance-forecast-reminder-empty";
+      empty.textContent = "目前沒有設定任何固定支出項目。";
+      financeForecastReminderList.appendChild(empty);
+    } else {
+      byAccount.forEach(function (entry) {
+        const row = document.createElement("div");
+        row.className = "finance-forecast-reminder-row";
+        const name = document.createElement("span");
+        name.textContent = entry.name;
+        const amount = document.createElement("span");
+        amount.className = "finance-forecast-reminder-amount";
+        amount.textContent = `$${Math.round(entry.amount).toLocaleString()}`;
+        row.appendChild(name);
+        row.appendChild(amount);
+        financeForecastReminderList.appendChild(row);
+      });
+    }
+  }
 
   // 可運用資金是負數時，整個面板要有明顯警示，不用另外找地方顯示
   // （見討論記錄：合併成單一區塊之後，警示狀態直接套在面板本身上，不再有獨立的標題列）。

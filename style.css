@@ -1572,16 +1572,12 @@ button.finance-drag-handle {
 }
 
 .finance-forecast-main-amount {
-    font-size: 32px;
+    font-size: 22px;
     font-weight: 700;
     color: #22c55e;
 }
 
 .finance-forecast-reminder {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: 10px;
     font-size: 12px;
     color: #6b7280;
     border-top: 1px dashed #374151;
@@ -1589,20 +1585,38 @@ button.finance-drag-handle {
     padding-top: 10px;
 }
 
-.finance-forecast-reminder span:last-child {
-    color: #9ca3af;
-    flex-shrink: 0;
-    font-weight: 600;
+.finance-forecast-reminder-title {
+    margin-bottom: 8px;
 }
 
-@media (max-width: 480px) {
-    /* 手機版空間不夠，「僅供參考」那句長文字跟金額硬擠在同一行會擠壓對不齊，
-       改成上下堆疊（見討論記錄）。 */
-    .finance-forecast-reminder {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 4px;
-    }
+.finance-forecast-reminder-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.finance-forecast-reminder-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.finance-forecast-reminder-row span:first-child {
+    color: #9ca3af;
+    font-size: 13px;
+}
+
+.finance-forecast-reminder-amount {
+    color: #f3f4f6;
+    font-weight: 700;
+    font-size: 17px;
+    flex-shrink: 0;
+}
+
+.finance-forecast-reminder-empty {
+    color: #6b7280;
+    font-size: 12px;
 }
 
 .finance-budget-add-toggle {
@@ -1862,9 +1876,9 @@ button.finance-drag-handle {
         min-width: 0;
     }
 
-    /* 下月固定支出提醒的數字桌面版太小，放大一點（見討論記錄）。 */
-    .finance-forecast-reminder span:last-child {
-        font-size: 15px;
+    /* 下月固定支出提醒的數字，使用者兩輪回饋都覺得太小，再加大一次（見討論記錄）。 */
+    .finance-forecast-reminder-amount {
+        font-size: 20px;
     }
 }
 
@@ -2056,16 +2070,22 @@ button.finance-drag-handle {
     margin-bottom: 0;
 }
 
-/* 標頭行：名稱+扣款日徽章在左，狀態文字在右，固定在這一行，
-   不管這個項目底下有沒有操作按鈕都不會被擠動（見討論記錄的排版修正）。 */
-.finance-budget-item-header-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 10px;
+/* 名稱行：名稱+扣款日徽章，自己佔一整行，內容多的話自己換行，不影響下面的狀態行。 */
+.finance-budget-item-name-row {
     font-size: 13px;
+    margin-bottom: 4px;
+}
+
+/* 狀態行：狀態文字+存入按鈕，自己佔一整行、靠右對齊，
+   不跟名稱行共用同一個 flex 換行判斷——這是上一輪排版跑掉的根本原因，
+   兩組內容長度不一時，同一個 flex row 換行時機不可預期，導致每個項目長得不一樣
+   （見討論記錄的修正）。 */
+.finance-budget-item-status-row {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 6px;
     margin-bottom: 6px;
-    flex-wrap: wrap;
 }
 
 .finance-item-budget-panel .finance-budget-item-status {
@@ -2082,60 +2102,20 @@ button.finance-drag-handle {
     color: #fca5a5;
 }
 
-.finance-budget-item-status-group {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-/* 存入操作的收合切換按鈕：預設隱藏操作按鈕列，點這個才展開，
-   避免每個項目都攤開存入/其他金額，讓整個面板變得很長（見討論記錄的要求）。 */
+/* 存入按鈕：點了直接存入，不是展開/收合的切換鈕（見討論記錄的簡化決定——
+   拿掉「其他金額」跟展開機制，只留這一個按鈕，需要修正金額就去管理資金分配資料庫調整）。 */
 .finance-budget-item-toggle-actions {
     background: none;
     border: none;
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1;
     padding: 2px 4px;
     cursor: pointer;
-    opacity: 0.6;
+    opacity: 0.7;
 }
 
 .finance-budget-item-toggle-actions:hover {
     opacity: 1;
-}
-
-/* 操作按鈕行：獨立在進度條下面，靠右對齊，只有需要操作的項目才會出現這一行。 */
-.finance-budget-item-actions-row {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    margin-top: 8px;
-}
-
-/* 存入／其他金額統一做成實心按鈕（參考記帳表單「新增紀錄」的風格），主要動作
-   用綠色實心、次要動作（其他金額）用邊框樣式，兩個視覺份量一致，不再是
-   「一個按鈕＋一個底線文字連結」的混搭（見討論記錄）。 */
-.finance-budget-deposit-button {
-    background: #22c55e;
-    color: #052e12;
-    border: none;
-    font-weight: 600;
-    font-size: 12px;
-    padding: 6px 12px;
-    border-radius: 8px;
-    cursor: pointer;
-}
-
-.finance-budget-deposit-button.is-secondary {
-    background: none;
-    border: 1px solid #374151;
-    color: #9ca3af;
-    font-weight: 500;
-}
-
-.finance-budget-deposit-button.is-secondary:hover {
-    color: #d1d5db;
-    border-color: #4b5563;
 }
 
 /* 🎯 管理分配項目彈窗：現在只負責結構調整，不再顯示進度條，
