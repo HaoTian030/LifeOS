@@ -729,6 +729,23 @@ h1{
     flex-shrink: 0;
 }
 
+/* 帳戶管理模式的把手/更多按鈕：改成垂直堆疊（把手在上、⋯在下），
+   把手本身也加大觸控範圍，手機上比較不容易滑到旁邊去誤觸別的東西
+   （見討論記錄：使用者反映手機版這裡容易滑動掉）。 */
+.finance-item-actions-manage {
+    flex-direction: column;
+    gap: 4px;
+}
+
+.finance-item-actions-manage .finance-drag-handle {
+    padding: 10px 14px;
+    font-size: 18px;
+}
+
+.finance-item-actions-manage .finance-item-more-toggle {
+    text-align: center;
+}
+
 .finance-item-more-toggle {
     background: none;
     border: none;
@@ -1614,6 +1631,21 @@ button.finance-drag-handle {
     flex-shrink: 0;
 }
 
+.finance-forecast-reminder-total-row {
+    border-top: 1px solid #374151;
+    margin-top: 4px;
+    padding-top: 8px;
+}
+
+.finance-forecast-reminder-total-row span:first-child {
+    color: #d1d5db;
+    font-weight: 600;
+}
+
+.finance-forecast-reminder-total-row .finance-forecast-reminder-amount {
+    color: #fbbf24;
+}
+
 .finance-forecast-reminder-empty {
     color: #6b7280;
     font-size: 12px;
@@ -1920,8 +1952,13 @@ button.finance-drag-handle {
 .finance-budget-item-label-wrap {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     flex-wrap: wrap;
+}
+
+.finance-budget-item-label-wrap .finance-drag-handle {
+    padding: 8px 12px;
+    font-size: 16px;
 }
 
 /* 下次扣款日徽章：主要給累積儲蓄型項目用（保單這種會在特定日期被自動扣款），
@@ -2048,6 +2085,10 @@ button.finance-drag-handle {
     padding: 12px;
     box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
     z-index: 20;
+    /* 項目多的帳戶（例如玉山銀行 10 幾個分配項目）展開後面板會被撐得很長，
+       加上最大高度＋內部捲動，不會讓整個頁面被拉長（見討論記錄的要求）。 */
+    max-height: 60vh;
+    overflow-y: auto;
 }
 
 @media (max-width: 480px) {
@@ -2059,6 +2100,8 @@ button.finance-drag-handle {
         border-top: 1px solid #374151;
         border-radius: 0;
         box-shadow: none;
+        max-height: 50vh;
+        overflow-y: auto;
     }
 }
 
@@ -2100,6 +2143,20 @@ button.finance-drag-handle {
 
 .finance-item-budget-panel .finance-budget-item-status.is-over {
     color: #fca5a5;
+}
+
+/* 狀態文字可點擊時（累積儲蓄型）加虛線底線當提示——這裡是「手動輸入/取出」的入口，
+   跟旁邊 💰「一鍵存入」按鈕分工不同，需要有視覺區隔讓人知道兩個都能點但作用不一樣
+   （見討論記錄的新增功能：取出/扣款）。 */
+.finance-budget-item-status-clickable {
+    cursor: pointer;
+    border-bottom: 1px dashed #6b7280;
+    padding-bottom: 1px;
+}
+
+.finance-budget-item-status-clickable:hover {
+    color: #f3f4f6;
+    border-bottom-color: #9ca3af;
 }
 
 /* 存入按鈕：點了直接存入，不是展開/收合的切換鈕（見討論記錄的簡化決定——

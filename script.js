@@ -3525,14 +3525,41 @@ function buildFinanceAccountBudgetPanel(account, items) {
 
     const statusRow = document.createElement("div");
     statusRow.className = "finance-budget-item-status-row";
+
+    // 抽成共用函式：存入/取出都是同一個動作，差別只在金額正負——
+    // 存入是正數，取出/扣款（例如過年領走紅包）是負數，同一套邏輯處理即可。
+    async function depositAmount(delta) {
+      if (isNaN(delta) || delta === 0) {
+        alert("請輸入不是 0 的數字。");
+        return;
+      }
+      const nextAmount = Math.max((budgetItem.accumulated_amount || 0) + delta, 0);
+      const ok = await updateFinanceBudgetItem(budgetItem.id, { accumulated_amount: nextAmount });
+      if (!ok) return;
+      expandedFinanceAccountIds.add(account.id); // 存完之後重畫整個畫面，這裡確保這張卡片還是展開的
+      renderFinanceAccounts();
+    }
+
+    if (budgetItem.cycle !== "monthly") {
+      // 狀態文字本身也可以點——手動輸入金額，支援負數，這是「取出/扣款」的入口
+      // （例如過年到了把紅包領出來用掉）。跟 💰 快速存入分開：💰 是「一鍵存入常態金額」，
+      // 點文字是「手動輸入任意金額（含負數）」，兩種操作互不干擾，都保留（見討論記錄）。
+      status.classList.add("finance-budget-item-status-clickable");
+      status.title = "點擊手動輸入金額（可輸入負數取出/扣款）";
+      status.addEventListener("click", async function (event) {
+        event.stopPropagation();
+        const raw = window.prompt(`要異動「${budgetItem.label}」多少金額？（存入輸入正數，取出/扣款輸入負數）`, "");
+        if (raw === null) return;
+        await depositAmount(Number(raw));
+      });
+    }
+
     statusRow.appendChild(status);
 
     if (budgetItem.cycle !== "monthly") {
-      // 簡化：只留 💰 一個按鈕，點了直接存入——有設定「每月固定存入金額」就直接用
-      // 那個金額，不用再跳出視窗；沒設定的才問金額。拿掉原本的「其他金額」跟
-      // 展開/收合機制，真的要修正金額，直接去管理資金分配資料庫調整設定即可，
-      // 不需要在主畫面留一個次要選項（見討論記錄的簡化決定，順便解決了
-      // 之前「點開之後點外部不會自動收合」的問題——現在根本沒有「展開狀態」了）。
+      // 簡化：💰 是「一鍵存入常態金額」的快速按鈕——有設定「每月固定存入金額」就直接用
+      // 那個金額，不用再跳出視窗；沒設定的才問金額。真的要取出/扣款或存不同金額，
+      // 點旁邊的狀態文字（見上面的說明）。
       const depositBtn = document.createElement("button");
       depositBtn.type = "button";
       depositBtn.className = "finance-budget-item-toggle-actions";
@@ -3552,15 +3579,7 @@ function buildFinanceAccountBudgetPanel(account, items) {
           if (raw === null) return;
           delta = Number(raw);
         }
-        if (isNaN(delta) || delta === 0) {
-          alert("請輸入不是 0 的數字。");
-          return;
-        }
-        const nextAmount = Math.max((budgetItem.accumulated_amount || 0) + delta, 0);
-        const ok = await updateFinanceBudgetItem(budgetItem.id, { accumulated_amount: nextAmount });
-        if (!ok) return;
-        expandedFinanceAccountIds.add(account.id); // 存完之後重畫整個畫面，這裡確保這張卡片還是展開的
-        renderFinanceAccounts();
+        await depositAmount(delta);
       });
 
       statusRow.appendChild(depositBtn);
@@ -3879,6 +3898,18 @@ function refreshFinanceForecastPanel() {
         row.appendChild(amount);
         financeForecastReminderList.appendChild(row);
       });
+
+      const total = byAccount.reduce(function (sum, entry) { return sum + entry.amount; }, 0);
+      const totalRow = document.createElement("div");
+      totalRow.className = "finance-forecast-reminder-row finance-forecast-reminder-total-row";
+      const totalName = document.createElement("span");
+      totalName.textContent = "總計";
+      const totalAmount = document.createElement("span");
+      totalAmount.className = "finance-forecast-reminder-amount";
+      totalAmount.textContent = `$${Math.round(total).toLocaleString()}`;
+      totalRow.appendChild(totalName);
+      totalRow.appendChild(totalAmount);
+      financeForecastReminderList.appendChild(totalRow);
     }
   }
 
@@ -4670,7 +4701,7 @@ function buildFinanceAccountItem(account, manageMode) {
   let editActions = null;
   if (manageMode) {
     const actions = document.createElement("div");
-    actions.className = "finance-item-actions";
+    actions.className = "finance-item-actions finance-item-actions-manage";
 
     const dragHandle = document.createElement("button");
     dragHandle.type = "button";
@@ -4681,7 +4712,8 @@ function buildFinanceAccountItem(account, manageMode) {
     attachFinanceAccountDragHandlers(dragHandle, item, account);
 
     // 編輯/刪除平常很少用到（帳戶建好之後大多不會再變動），把手常駐、
-    // 編輯/刪除改成點「⋯」才展開（見討論記錄的要求）。
+    // 編輯/刪除改成點「⋯」才展開（見討論記錄的要求）。把手放上面、⋯放下面，
+    // 兩個目標分開、把手加大，手機上比較不容易滑到旁邊去（見討論記錄的修正）。
     const moreToggle = document.createElement("button");
     moreToggle.type = "button";
     moreToggle.className = "finance-item-more-toggle";
