@@ -729,21 +729,16 @@ h1{
     flex-shrink: 0;
 }
 
-/* 帳戶管理模式的把手/更多按鈕：改成垂直堆疊（把手在上、⋯在下），
-   把手本身也加大觸控範圍，手機上比較不容易滑到旁邊去誤觸別的東西
-   （見討論記錄：使用者反映手機版這裡容易滑動掉）。 */
+/* 帳戶管理模式的把手/更多按鈕：維持橫向排列，只加大觸控範圍，不垂直堆疊——
+   上一輪改成垂直堆疊雖然觸控範圍變大，但手機上每張卡片因此變得很高，
+   帳戶一多整個列表就非常占空間，這是我沒考慮到的副作用（見討論記錄的修正）。 */
 .finance-item-actions-manage {
-    flex-direction: column;
-    gap: 4px;
+    gap: 6px;
 }
 
 .finance-item-actions-manage .finance-drag-handle {
-    padding: 10px 14px;
-    font-size: 18px;
-}
-
-.finance-item-actions-manage .finance-item-more-toggle {
-    text-align: center;
+    padding: 8px 12px;
+    font-size: 16px;
 }
 
 .finance-item-more-toggle {
@@ -2038,10 +2033,10 @@ button.finance-drag-handle {
     color: #fca5a5;
 }
 
-/* 帳戶卡片展開/收合：不用獨立按鈕（那顆小方塊跟沒有分配項目的帳戶長得不一樣，
-   視覺上很突兀），改成整個名稱區塊可以直接點擊。上一版用黑色陰影模擬立體浮起，
-   但背景本來就是深色，黑色陰影幾乎看不出來，這是我的判斷失誤——
-   改成有顏色的發光效果（見討論記錄的建議），在深色背景上才會真的顯眼。 */
+/* 帳戶名稱可點擊，開啟分配詳情彈窗——用發光效果當提示，在深色背景上比陰影明顯
+   （見討論記錄）。詳情內容改成正式彈窗顯示（跟記帳明細/管理資金分配資料庫同一套），
+   不再是貼著卡片下方的小浮動面板，項目多時也不用被小面板的高度限制卡住
+   （見討論記錄的修正：使用者想要「一眼看全部」，浮動面板受限於卡片位置沒辦法做到）。 */
 .finance-item-info-expandable {
     cursor: pointer;
     border-radius: 6px;
@@ -2055,54 +2050,6 @@ button.finance-drag-handle {
     background: #1f2937;
     border-color: #22c55e;
     box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.4), 0 0 14px rgba(34, 197, 94, 0.35);
-}
-
-.finance-item-info-expandable.is-open {
-    background: #1f2937;
-    border-color: rgba(34, 197, 94, 0.5);
-    box-shadow: 0 0 10px rgba(34, 197, 94, 0.2);
-}
-
-/* 帳戶卡片展開後的分配項目面板：只做「看進度、存入」，
-   跟 🎯 管理分配項目彈窗的角色分工（那邊負責新增/編輯/刪除）。
-   改成浮動彈出（見討論記錄）：原本用「往下推開」會把同一列其他卡片的格高撐開、
-   留下空白，讓人分心；改成絕對定位浮出，完全不佔用版面高度，展開哪個都不會
-   影響其他卡片。手機版寬度有限，改回原地往下展開（見下面 max-width:480px 那段），
-   浮動彈出在窄螢幕上容易超出畫面或蓋住整個畫面，佔優勢的場景主要是桌面。 */
-.finance-item-has-panel {
-    position: relative;
-}
-
-.finance-item-budget-panel-floating {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    margin-top: 6px;
-    background: #1f2937;
-    border: 1px solid #374151;
-    border-radius: 10px;
-    padding: 12px;
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
-    z-index: 20;
-    /* 項目多的帳戶（例如玉山銀行 10 幾個分配項目）展開後面板會被撐得很長，
-       加上最大高度＋內部捲動，不會讓整個頁面被拉長（見討論記錄的要求）。 */
-    max-height: 60vh;
-    overflow-y: auto;
-}
-
-@media (max-width: 480px) {
-    .finance-item-budget-panel-floating {
-        position: static;
-        margin-top: 10px;
-        padding: 10px 0 0;
-        border: none;
-        border-top: 1px solid #374151;
-        border-radius: 0;
-        box-shadow: none;
-        max-height: 50vh;
-        overflow-y: auto;
-    }
 }
 
 .finance-item-budget-panel .finance-budget-item {

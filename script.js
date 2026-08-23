@@ -1963,24 +1963,28 @@ const financeForecastCurrent = document.getElementById("finance-forecast-current
 const financeForecastReminderList = document.getElementById("finance-forecast-reminder-list");
 const financeForecastToggleWarningIcon = document.getElementById("finance-forecast-toggle-warning-icon");
 
-// 主畫面帳戶卡片的展開狀態：記在這個集合裡，renderFinanceAccounts() 每次重畫都會照著這個集合
-// 決定哪些卡片要保持展開，避免每次資料一有異動重新渲染，使用者展開的卡片又全部收回去。
-const expandedFinanceAccountIds = new Set();
-// 目前展開中的浮動分配面板（同時間只允許一個），存 panel/info/accountId 三個參照，
-// 方便點別的帳戶或點外部空白處時，能直接關掉這個而不用整批重畫。
-let currentlyOpenFinanceBudgetPanel = null;
+// 帳戶分配詳情彈窗：點帳戶名稱開啟，取代原本貼著卡片下方的小浮動面板
+// （見討論記錄：浮動面板受限於卡片位置跟螢幕邊緣，項目一多還是得捲動；
+// 正式彈窗有完整的視窗高度可用，比較符合「一眼看全部」的期待）。
+const financeAccountDetailModalOverlay = document.getElementById("finance-account-detail-modal-overlay");
+const financeAccountDetailModalTitle = document.getElementById("finance-account-detail-modal-title");
+const financeAccountDetailModalBody = document.getElementById("finance-account-detail-modal-body");
+const financeAccountDetailModalClose = document.getElementById("finance-account-detail-modal-close");
 
-// 點擊浮動面板以外的任何地方，自動收合——跳出式視窗的標準行為，
-// 不用另外找地方放「關閉」按鈕（見討論記錄：改成浮動彈出之後才需要這個機制，
-// 原本「往下推開」的做法本來就一直顯示在原地，不需要點外部關閉）。
-document.addEventListener("click", function (event) {
-  if (!currentlyOpenFinanceBudgetPanel) return;
-  const { panel, info } = currentlyOpenFinanceBudgetPanel;
-  if (panel.contains(event.target) || info.contains(event.target)) return;
-  panel.style.display = "none";
-  info.classList.remove("is-open");
-  expandedFinanceAccountIds.delete(currentlyOpenFinanceBudgetPanel.accountId);
-  currentlyOpenFinanceBudgetPanel = null;
+function openFinanceAccountDetailModal(account, items) {
+  financeAccountDetailModalTitle.textContent = account.name;
+  financeAccountDetailModalBody.innerHTML = "";
+  financeAccountDetailModalBody.appendChild(buildFinanceAccountBudgetPanel(account, items));
+  financeAccountDetailModalOverlay.style.display = "flex";
+}
+
+function closeFinanceAccountDetailModal() {
+  financeAccountDetailModalOverlay.style.display = "none";
+}
+
+financeAccountDetailModalClose.addEventListener("click", closeFinanceAccountDetailModal);
+financeAccountDetailModalOverlay.addEventListener("click", function (event) {
+  if (event.target === financeAccountDetailModalOverlay) closeFinanceAccountDetailModal();
 });
 
 const financeTxBudgetSuggestion = document.getElementById("finance-tx-budget-suggestion");
@@ -3536,8 +3540,13 @@ function buildFinanceAccountBudgetPanel(account, items) {
       const nextAmount = Math.max((budgetItem.accumulated_amount || 0) + delta, 0);
       const ok = await updateFinanceBudgetItem(budgetItem.id, { accumulated_amount: nextAmount });
       if (!ok) return;
-      expandedFinanceAccountIds.add(account.id); // 存完之後重畫整個畫面，這裡確保這張卡片還是展開的
       renderFinanceAccounts();
+      if (financeAccountDetailModalOverlay.style.display !== "none") {
+        const refreshedItems = financeBudgetItems
+          .filter(function (b) { return b.account_id === account.id && b.active; })
+          .sort(function (a, b) { return (a.sort_order || 0) - (b.sort_order || 0); });
+        openFinanceAccountDetailModal(account, refreshedItems);
+      }
     }
 
     if (budgetItem.cycle !== "monthly") {
@@ -4645,58 +4654,25 @@ function buildFinanceAccountItem(account, manageMode) {
     meta.appendChild(excludedBadge);
   }
 
-  info.appendChild(nameRow);
-  info.appendChild(meta);
-
-  rowWrap.appendChild(info);
-
-  // 只有資產帳戶、且底下有進行中分配項目時，才需要展開/收合這個機制——
+  // 只有資產帳戶、且底下有進行中分配項目時，才需要點擊查看這個機制——
   // 沒有分配項目的帳戶完全不受影響，畫面跟改版前一樣（見討論記錄的一貫原則）。
   const accountBudgetItems = financeBudgetItems
     .filter(function (b) { return b.account_id === account.id && b.active; })
     .sort(function (a, b) { return (a.sort_order || 0) - (b.sort_order || 0); });
 
-  let panel = null;
   if (account.category === "asset" && accountBudgetItems.length > 0) {
-    const isExpanded = expandedFinanceAccountIds.has(account.id);
-
-    panel = buildFinanceAccountBudgetPanel(account, accountBudgetItems);
-    panel.classList.add("finance-item-budget-panel-floating");
-    panel.style.display = isExpanded ? "block" : "none";
-    item.classList.add("finance-item-has-panel");
-
-    // 拿掉獨立的展開/收合按鈕，改成整個名稱區塊可以直接點擊展開。
-    // 面板改成浮動彈出（見討論記錄：原本用「往下推開」的方式會把同一列的其他卡片
-    // 撐高、留下空白，使用者反而會一直被那塊空白分心；改成浮動彈出完全不影響
-    // 版面高度，代價是短暫可能蓋住下面的卡片，使用者確認這個取捨可以接受）。
-    // 同時間只允許展開一個帳戶——開新的會自動收掉舊的，避免好幾個浮動視窗同時疊在畫面上。
+    // 改成點擊開啟正式彈窗（跟記帳明細、管理資金分配資料庫同一套視窗），不再是
+    // 貼著卡片下方、有高度限制的小浮動面板——浮動面板受限於卡片位置跟螢幕邊緣，
+    // 項目一多還是得捲動才看得完；正式彈窗有完整的視窗高度可用，比較符合
+    // 「一眼看全部」的期待（見討論記錄的修正）。
     info.classList.add("finance-item-info-expandable");
-    if (isExpanded) {
-      info.classList.add("is-open");
-      currentlyOpenFinanceBudgetPanel = { panel: panel, info: info, accountId: account.id };
-    }
-
     info.addEventListener("click", function (event) {
       event.stopPropagation();
-      const nowExpanded = panel.style.display === "none";
-
-      if (currentlyOpenFinanceBudgetPanel && currentlyOpenFinanceBudgetPanel.accountId !== account.id) {
-        currentlyOpenFinanceBudgetPanel.panel.style.display = "none";
-        currentlyOpenFinanceBudgetPanel.info.classList.remove("is-open");
-        expandedFinanceAccountIds.delete(currentlyOpenFinanceBudgetPanel.accountId);
-      }
-
-      panel.style.display = nowExpanded ? "block" : "none";
-      info.classList.toggle("is-open", nowExpanded);
-      if (nowExpanded) {
-        expandedFinanceAccountIds.add(account.id);
-        currentlyOpenFinanceBudgetPanel = { panel: panel, info: info, accountId: account.id };
-      } else {
-        expandedFinanceAccountIds.delete(account.id);
-        currentlyOpenFinanceBudgetPanel = null;
-      }
+      openFinanceAccountDetailModal(account, accountBudgetItems);
     });
   }
+
+  rowWrap.appendChild(info);
 
   let editActions = null;
   if (manageMode) {
@@ -4756,7 +4732,6 @@ function buildFinanceAccountItem(account, manageMode) {
 
   item.appendChild(rowWrap);
   if (manageMode) item.appendChild(editActions);
-  if (panel) item.appendChild(panel);
 
   return item;
 }
