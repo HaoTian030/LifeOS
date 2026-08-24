@@ -4654,6 +4654,9 @@ function buildFinanceAccountItem(account, manageMode) {
     meta.appendChild(excludedBadge);
   }
 
+  info.appendChild(nameRow);
+  info.appendChild(meta);
+
   // 只有資產帳戶、且底下有進行中分配項目時，才需要點擊查看這個機制——
   // 沒有分配項目的帳戶完全不受影響，畫面跟改版前一樣（見討論記錄的一貫原則）。
   const accountBudgetItems = financeBudgetItems
@@ -4702,7 +4705,7 @@ function buildFinanceAccountItem(account, manageMode) {
     rowWrap.appendChild(actions);
 
     editActions = document.createElement("div");
-    editActions.className = "finance-item-actions finance-item-actions-collapsed";
+    editActions.className = "finance-item-actions finance-item-actions-popover";
     editActions.style.display = "none";
 
     const editButton = document.createElement("button");
@@ -4722,11 +4725,18 @@ function buildFinanceAccountItem(account, manageMode) {
 
     editActions.appendChild(editButton);
     editActions.appendChild(deleteButton);
+    item.classList.add("finance-item-has-popover");
 
     moreToggle.addEventListener("click", function (event) {
       event.stopPropagation();
       const isHidden = editActions.style.display === "none";
+
+      if (currentlyOpenAccountActionsPopover && currentlyOpenAccountActionsPopover !== editActions) {
+        currentlyOpenAccountActionsPopover.style.display = "none";
+      }
+
       editActions.style.display = isHidden ? "flex" : "none";
+      currentlyOpenAccountActionsPopover = isHidden ? editActions : null;
     });
   }
 
@@ -4735,6 +4745,17 @@ function buildFinanceAccountItem(account, manageMode) {
 
   return item;
 }
+
+// 帳戶管理模式的編輯/刪除浮動選單，同時間只允許一個展開，點擊外部自動收合
+// （跟分配詳情彈窗、記帳明細用同一套「跳出式互動」原則）。
+let currentlyOpenAccountActionsPopover = null;
+
+document.addEventListener("click", function (event) {
+  if (!currentlyOpenAccountActionsPopover) return;
+  if (currentlyOpenAccountActionsPopover.contains(event.target)) return;
+  currentlyOpenAccountActionsPopover.style.display = "none";
+  currentlyOpenAccountActionsPopover = null;
+});
 
 // 拖曳排序：
 // 1. 支援上下左右（因為桌面版是多欄 Grid，只判斷上下不夠，要用「離哪個項目最近」來判斷）

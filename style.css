@@ -678,10 +678,27 @@ h1{
 }
 
 .finance-item {
+    position: relative;
     margin-bottom: 8px;
     background: #111827;
     border-radius: 8px;
     padding: 8px 12px;
+}
+
+/* 帳戶管理模式的編輯/刪除，改成浮動彈出（不是往下推開整張卡片）——
+   卡片在桌面版是 CSS Grid 排列，一撐高會把同一列其他卡片下方擠出空白，
+   跟之前修過的「展開面板撐高整列」是同一類問題（見討論記錄的修正）。 */
+.finance-item-actions-popover {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 6px;
+    background: #1f2937;
+    border: 1px solid #374151;
+    border-radius: 8px;
+    padding: 8px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+    z-index: 15;
 }
 
 .finance-item-row {
@@ -921,6 +938,30 @@ button.finance-drag-handle {
 .finance-tx-modal-list {
     overflow-y: auto;
     max-height: 55vh;
+}
+
+.finance-account-detail-modal-body {
+    overflow-y: auto;
+    max-height: 75vh;
+}
+
+@media (min-width: 900px) {
+    /* 帳戶詳情彈窗桌面版再放大一些，項目多的帳戶也能盡量一次看完，減少捲動
+       （見討論記錄的要求）。項目也改成兩欄排列，進一步縮短需要捲動的高度。 */
+    #finance-account-detail-modal-overlay .modal-box-wide {
+        width: min(960px, 94vw);
+    }
+
+    .finance-account-detail-modal-body {
+        max-height: 78vh;
+    }
+
+    .finance-account-detail-modal-body .finance-item-budget-panel {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 4px 24px;
+        align-content: start;
+    }
 }
 
 /* ============ 財務：資產總覽版面調整 ============ */
