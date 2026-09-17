@@ -192,21 +192,6 @@
                 </div>
             </div>
 
-            <div class="finance-input-row" id="finance-add-account-section" style="display:none;">
-                <input id="finance-name-input" type="text" placeholder="帳戶名稱">
-                <input id="finance-purpose-input" type="text" placeholder="用途說明">
-                <select id="finance-category-select">
-                    <option value="asset">資產</option>
-                    <option value="liability">負債</option>
-                </select>
-                <input id="finance-balance-input" type="number" placeholder="金額">
-                <label class="finance-count-in-available-label">
-                    <input id="finance-count-in-available-input" type="checkbox" checked>
-                    計入可運用資金
-                </label>
-                <button id="finance-add-button" type="button">新增帳戶</button>
-            </div>
-
             <h3 class="finance-section-title">資產</h3>
             <p id="finance-assets-empty" class="empty-state">還沒有任何資產帳戶，用上面的表單新增第一筆吧。</p>
             <div id="finance-assets-list"></div>
@@ -395,6 +380,41 @@
         </div>
     </div>
 
+    <div id="finance-add-account-modal-overlay" class="modal-overlay" style="display:none;">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h2>➕ 新增帳戶</h2>
+                <button id="finance-add-account-modal-close" type="button">✕</button>
+            </div>
+            <div class="finance-budget-add-form">
+                <div class="finance-form-group">
+                    <span class="finance-form-group-label">基本資料</span>
+                    <div class="finance-form-group-row">
+                        <input id="finance-name-input" type="text" placeholder="帳戶名稱">
+                        <input id="finance-purpose-input" type="text" placeholder="用途說明">
+                    </div>
+                </div>
+                <div class="finance-form-group">
+                    <span class="finance-form-group-label">分類與金額</span>
+                    <div class="finance-form-group-row">
+                        <select id="finance-category-select">
+                            <option value="asset">資產</option>
+                            <option value="liability">負債</option>
+                        </select>
+                        <input id="finance-balance-input" type="number" placeholder="金額">
+                    </div>
+                    <label class="finance-count-in-available-label">
+                        <input id="finance-count-in-available-input" type="checkbox" checked>
+                        計入可運用資金
+                    </label>
+                </div>
+                <div class="finance-form-actions">
+                    <button id="finance-add-button" type="button">新增帳戶</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="finance-budget-modal-overlay" class="modal-overlay" style="display:none;">
         <div class="modal-box modal-box-wide">
             <div class="modal-header">
@@ -447,6 +467,16 @@
 
             <p id="finance-budget-empty" class="empty-state">還沒有任何分配項目，用上面的表單建立第一筆吧。</p>
             <div id="finance-budget-list"></div>
+        </div>
+    </div>
+
+    <div id="finance-budget-account-modal-overlay" class="modal-overlay" style="display:none;">
+        <div class="modal-box modal-box-wide">
+            <div class="modal-header">
+                <h2 id="finance-budget-account-modal-title">帳戶分配管理</h2>
+                <button id="finance-budget-account-modal-close" type="button">✕</button>
+            </div>
+            <div id="finance-budget-account-modal-body" class="finance-account-detail-modal-body"></div>
         </div>
     </div>
 

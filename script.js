@@ -4104,23 +4104,14 @@ function getBudgetItemProgress(item) {
 // 建立單一帳戶的分配項目區塊（管理彈窗用）：帳戶名稱 + 底下每個項目的目標/週期 + 編輯/刪除/歸零。
 // 抽成獨立函式是因為 renderFinanceBudgetModal 現在要在「桌面兩欄」跟「手機單欄」兩種情況下
 // 重複呼叫這個建構邏輯，不想維護兩份幾乎一樣的程式碼。
-function buildBudgetAccountGroupElement(account, items) {
-  const group = document.createElement("div");
-  group.className = "finance-budget-account-group";
-
-  const header = document.createElement("div");
-  header.className = "finance-budget-account-header";
-  const headerName = document.createElement("span");
-  headerName.className = "finance-budget-account-header-name";
-  headerName.textContent = account.name;
-  header.appendChild(headerName);
-  group.appendChild(header);
-
-  // 項目包進獨立容器，跟上面的帳戶名稱標題分開——拖曳排序只在這個容器內部判斷插入位置，
-  // 不會被標題干擾（不然拖曳邏輯可能會把項目誤判成要插到標題前面）。
+// 建立單一帳戶的分配項目清單（不含帳戶標題，標題由外層的帳戶分配管理彈窗自己顯示）：
+// 每個項目可以拖曳排序、編輯、刪除、歸零。這裡原本還包含帳戶標題自成一個區塊，
+// 現在改成給「帳戶分配管理」這個獨立彈窗使用，標題已經由彈窗本身處理，不用重複顯示
+// （見討論記錄：管理資金分配資料庫改成兩層——第一層是精簡的帳戶清單，
+// 點進去才會用這個函式建立該帳戶完整的項目管理畫面，有更充裕的空間）。
+function buildBudgetItemsListForAccount(account, items) {
   const itemsContainer = document.createElement("div");
   itemsContainer.className = "finance-budget-account-items";
-  group.appendChild(itemsContainer);
 
   items.forEach(function (item) {
     const row = document.createElement("div");
@@ -4164,6 +4155,7 @@ function buildBudgetAccountGroupElement(account, items) {
         if (!window.confirm(`確定要把「${item.label}」的累積進度歸零嗎？（目前是 $${Math.round(item.accumulated_amount || 0).toLocaleString()}）`)) return;
         const ok = await updateFinanceBudgetItem(item.id, { accumulated_amount: 0 });
         if (!ok) return;
+        refreshFinanceBudgetAccountModal(account.id);
         renderFinanceBudgetModal();
         renderFinanceAccounts();
       });
@@ -4174,6 +4166,10 @@ function buildBudgetAccountGroupElement(account, items) {
     editBtn.type = "button";
     editBtn.textContent = "編輯";
     editBtn.addEventListener("click", function () {
+      // 編輯表單放在第一層的「管理資金分配資料庫」彈窗裡，如果現在在第二層的
+      // 帳戶分配管理彈窗，要先關掉它，不然表單會被壓在底下看不到
+      // （見討論記錄：兩層彈窗共用同一個編輯表單，避免重複維護兩份）。
+      closeFinanceBudgetAccountModal();
       financeBudgetEditingId = item.id;
       resetFinanceBudgetAddForm();
       financeBudgetAccountSelect.value = item.account_id;
@@ -4195,6 +4191,7 @@ function buildBudgetAccountGroupElement(account, items) {
       if (!window.confirm(`確定要刪除「${item.label}」這個分配項目嗎？已經記過的交易不會被刪除，只是會失去對應的分配項目。`)) return;
       const ok = await deleteFinanceBudgetItem(item.id);
       if (!ok) return;
+      refreshFinanceBudgetAccountModal(account.id);
       renderFinanceBudgetModal();
       renderFinanceAccounts();
     });
@@ -4210,7 +4207,75 @@ function buildBudgetAccountGroupElement(account, items) {
     itemsContainer.appendChild(row);
   });
 
-  return group;
+  return itemsContainer;
+}
+
+// 帳戶分配管理彈窗（第二層）：點第一層的帳戶列才會開啟，裡面用
+// buildBudgetItemsListForAccount 顯示該帳戶完整的項目管理畫面，有獨立彈窗的
+// 完整空間可以用，不用擠在手風琴收合區塊裡（見討論記錄的方案定案）。
+const financeBudgetAccountModalOverlay = document.getElementById("finance-budget-account-modal-overlay");
+const financeBudgetAccountModalTitle = document.getElementById("finance-budget-account-modal-title");
+const financeBudgetAccountModalBody = document.getElementById("finance-budget-account-modal-body");
+const financeBudgetAccountModalClose = document.getElementById("finance-budget-account-modal-close");
+
+function openFinanceBudgetAccountModal(account) {
+  financeBudgetAccountModalTitle.textContent = account.name;
+  financeBudgetAccountModalTitle.dataset.accountId = account.id;
+  financeBudgetAccountModalOverlay.style.display = "flex";
+  refreshFinanceBudgetAccountModal(account.id);
+}
+
+// 彈窗開著的時候，項目有異動（歸零/刪除）要重新整理內容，才會看到最新狀態，
+// 不用關掉再打開一次。
+function refreshFinanceBudgetAccountModal(accountId) {
+  if (financeBudgetAccountModalOverlay.style.display === "none") return;
+  const account = financeAccounts.find(function (a) { return a.id === accountId; });
+  if (!account) {
+    closeFinanceBudgetAccountModal();
+    return;
+  }
+  const items = financeBudgetItems
+    .filter(function (b) { return b.account_id === accountId; })
+    .sort(function (a, b) { return (a.sort_order || 0) - (b.sort_order || 0); });
+  financeBudgetAccountModalBody.innerHTML = "";
+  financeBudgetAccountModalBody.appendChild(buildBudgetItemsListForAccount(account, items));
+}
+
+function closeFinanceBudgetAccountModal() {
+  financeBudgetAccountModalOverlay.style.display = "none";
+}
+
+financeBudgetAccountModalClose.addEventListener("click", closeFinanceBudgetAccountModal);
+financeBudgetAccountModalOverlay.addEventListener("click", function (event) {
+  if (event.target === financeBudgetAccountModalOverlay) closeFinanceBudgetAccountModal();
+});
+
+// 第一層的精簡帳戶列：帳戶名稱＋項目數量＋目標總額，點了才開第二層的完整管理彈窗
+// （見討論記錄：手風琴收合＋緊湊列的組合方案，但展開改成跳出獨立視窗，
+// 而不是在收合區塊裡塞內容，這樣才有充裕的空間可以用）。
+function buildBudgetAccountSummaryRow(account, items) {
+  const row = document.createElement("button");
+  row.type = "button";
+  row.className = "finance-budget-account-summary-row";
+
+  const totalTarget = items.reduce(function (sum, item) { return sum + item.planned_amount; }, 0);
+
+  const name = document.createElement("span");
+  name.className = "finance-budget-account-summary-name";
+  name.textContent = account.name;
+
+  const meta = document.createElement("span");
+  meta.className = "finance-budget-account-summary-meta";
+  meta.textContent = `${items.length} 項 · 目標 $${Math.round(totalTarget).toLocaleString()}`;
+
+  row.appendChild(name);
+  row.appendChild(meta);
+
+  row.addEventListener("click", function () {
+    openFinanceBudgetAccountModal(account);
+  });
+
+  return row;
 }
 
 // 分配項目拖曳排序：跟帳戶排序共用同一套插入位置判斷邏輯（pickFinanceAccountInsertionTarget
@@ -4319,6 +4384,10 @@ async function finalizeFinanceBudgetItemReorder(container) {
 // 改成用程式邏輯動態平衡：依照每欄目前已經放了多少「分配項目數」，新帳戶固定放進項目數
 // 較少的那一欄——欄寬是固定的（不會橫向溢出），內容量也會自動找比較短的欄補齊
 // （不會有大塊空白），見討論記錄的修正。手機螢幕維持單欄，不套用這套分欄邏輯。
+// 分配總覽第一層：精簡的帳戶清單，一行一個帳戶（名稱＋項目數量＋目標總額），
+// 點了才開第二層的完整管理彈窗（見討論記錄的方案定案：手風琴＋緊湊列的組合，
+// 但「展開」改成跳出獨立視窗而不是收合區塊，才有充裕空間可以用）。
+// 不再需要動態平衡兩欄的邏輯——精簡列表很短，不會有長短不一造成空白的問題。
 function renderFinanceBudgetModal() {
   financeBudgetList.innerHTML = "";
 
@@ -4329,55 +4398,36 @@ function renderFinanceBudgetModal() {
   }
   financeBudgetEmpty.style.display = "none";
 
-  const groups = accountIds
-    .map(function (accountId) {
-      const account = financeAccounts.find(function (a) { return a.id === accountId; });
-      const items = financeBudgetItems
-        .filter(function (b) { return b.account_id === accountId; })
-        .sort(function (a, b) { return (a.sort_order || 0) - (b.sort_order || 0); });
-      return { account: account, items: items };
-    })
-    .filter(function (g) { return g.account; });
-
-  if (window.innerWidth < 768) {
-    groups.forEach(function (g) {
-      financeBudgetList.appendChild(buildBudgetAccountGroupElement(g.account, g.items));
-    });
-    return;
-  }
-
-  const columnsWrap = document.createElement("div");
-  columnsWrap.className = "finance-budget-columns";
-  const columnLeft = document.createElement("div");
-  columnLeft.className = "finance-budget-column";
-  const columnRight = document.createElement("div");
-  columnRight.className = "finance-budget-column";
-  columnsWrap.appendChild(columnLeft);
-  columnsWrap.appendChild(columnRight);
-
-  let leftCount = 0;
-  let rightCount = 0;
-  groups.forEach(function (g) {
-    const el = buildBudgetAccountGroupElement(g.account, g.items);
-    if (leftCount <= rightCount) {
-      columnLeft.appendChild(el);
-      leftCount += g.items.length;
-    } else {
-      columnRight.appendChild(el);
-      rightCount += g.items.length;
-    }
+  accountIds.forEach(function (accountId) {
+    const account = financeAccounts.find(function (a) { return a.id === accountId; });
+    if (!account) return;
+    const items = financeBudgetItems.filter(function (b) { return b.account_id === accountId; });
+    financeBudgetList.appendChild(buildBudgetAccountSummaryRow(account, items));
   });
 
-  financeBudgetList.appendChild(columnsWrap);
+  // 如果第二層的帳戶管理彈窗剛好開著（例如新增/編輯項目時彈窗還沒關），
+  // 一併刷新內容，確保看到的是最新資料。
+  if (financeBudgetAccountModalOverlay.style.display !== "none") {
+    refreshFinanceBudgetAccountModal(financeBudgetAccountModalTitle.dataset.accountId);
+  }
 }
 
-// 新增帳戶表單預設收合（建好之後很少會再用到），點按鈕才展開/收回。
+// 新增帳戶改成跳出彈窗（見討論記錄的要求，跟其他表單統一風格）。
+const financeAddAccountModalOverlay = document.getElementById("finance-add-account-modal-overlay");
+const financeAddAccountModalClose = document.getElementById("finance-add-account-modal-close");
 const financeAddAccountToggle = document.getElementById("finance-add-account-toggle");
-const financeAddAccountSection = document.getElementById("finance-add-account-section");
 
 financeAddAccountToggle.addEventListener("click", function () {
-  const isHidden = financeAddAccountSection.style.display === "none";
-  financeAddAccountSection.style.display = isHidden ? "" : "none";
+  financeAddAccountModalOverlay.style.display = "flex";
+});
+
+function closeFinanceAddAccountModal() {
+  financeAddAccountModalOverlay.style.display = "none";
+}
+
+financeAddAccountModalClose.addEventListener("click", closeFinanceAddAccountModal);
+financeAddAccountModalOverlay.addEventListener("click", function (event) {
+  if (event.target === financeAddAccountModalOverlay) closeFinanceAddAccountModal();
 });
 
 // 管理帳戶開關：平常隱藏拖曳把手／編輯／刪除，減少版面占用，
@@ -4461,7 +4511,7 @@ async function addFinanceAccount() {
   financePurposeInput.value = "";
   financeBalanceInput.value = "";
   financeCountInAvailableInput.checked = true;
-  financeAddAccountSection.style.display = "none";
+  closeFinanceAddAccountModal();
   renderFinanceAccounts();
 }
 
@@ -4702,8 +4752,11 @@ function buildFinanceAccountItem(account, manageMode) {
 
     actions.appendChild(dragHandle);
     actions.appendChild(moreToggle);
-    rowWrap.appendChild(actions);
 
+    // editActions 放進 actions 容器內部（不是整張卡片），用絕對定位直接蓋住
+    // 把手＋⋯本身——之前是相對於整張卡片定位，在多欄 Grid 版面下算出來的位置
+    // 常常跑掉（見討論記錄：使用者反映位置怪怪的，並建議直接蓋住原本的按鈕）。
+    actions.classList.add("finance-item-actions-anchor");
     editActions = document.createElement("div");
     editActions.className = "finance-item-actions finance-item-actions-popover";
     editActions.style.display = "none";
@@ -4725,7 +4778,8 @@ function buildFinanceAccountItem(account, manageMode) {
 
     editActions.appendChild(editButton);
     editActions.appendChild(deleteButton);
-    item.classList.add("finance-item-has-popover");
+    actions.appendChild(editActions);
+    rowWrap.appendChild(actions);
 
     moreToggle.addEventListener("click", function (event) {
       event.stopPropagation();
@@ -4741,7 +4795,6 @@ function buildFinanceAccountItem(account, manageMode) {
   }
 
   item.appendChild(rowWrap);
-  if (manageMode) item.appendChild(editActions);
 
   return item;
 }
