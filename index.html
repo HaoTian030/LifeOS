@@ -30,6 +30,10 @@
             <span class="tab-nav-icon">📋</span>
             <span class="tab-nav-label">待辦與目標</span>
         </button>
+        <button type="button" class="tab-nav-button" data-tab-target="finance">
+            <span class="tab-nav-icon">💰</span>
+            <span class="tab-nav-label">財務</span>
+        </button>
         <button type="button" class="tab-nav-button" data-tab-target="reflection">
             <span class="tab-nav-icon">💭</span>
             <span class="tab-nav-label">反思</span>
@@ -37,10 +41,6 @@
         <button type="button" class="tab-nav-button" data-tab-target="status" hidden>
             <span class="tab-nav-icon">👤</span>
             <span class="tab-nav-label">個人狀態</span>
-        </button>
-        <button type="button" class="tab-nav-button" data-tab-target="finance">
-            <span class="tab-nav-icon">💰</span>
-            <span class="tab-nav-label">財務</span>
         </button>
         <button type="button" class="tab-nav-button" data-tab-target="notion" hidden>
             <span class="tab-nav-icon">📝</span>
@@ -169,14 +169,9 @@
                 </div>
             </div>
 
-            <div class="finance-summary">
-                <p id="finance-total-assets">總資產：$0</p>
-                <p id="finance-total-liabilities">總負債：$0</p>
-                <p id="finance-net-worth">淨資產：$0</p>
-            </div>
-
             <div id="finance-forecast-panel" class="finance-forecast-panel">
-                <div class="finance-forecast-main">
+                <div class="finance-forecast-left">
+                    <div class="finance-forecast-main">
                     <span class="finance-forecast-main-label">
                         <span class="finance-forecast-toggle-icon">💵</span>
                         <span>可運用資金</span>
@@ -185,6 +180,12 @@
                         <span id="finance-forecast-current" class="finance-forecast-main-amount">$0</span>
                         <span id="finance-forecast-toggle-warning-icon" class="finance-forecast-toggle-warning-icon" style="display:none;">⚠️</span>
                     </span>
+                </div>
+                    <div class="finance-summary">
+                        <p><span>總資產</span><span id="finance-total-assets" class="finance-summary-amount">$0</span></p>
+                        <p><span>總負債</span><span id="finance-total-liabilities" class="finance-summary-amount">$0</span></p>
+                        <p class="finance-summary-net"><span>淨資產</span><span id="finance-net-worth" class="finance-summary-amount">$0</span></p>
+                    </div>
                 </div>
                 <div class="finance-forecast-reminder">
                     <div class="finance-forecast-reminder-title">📌 下月固定支出提醒（僅供參考，不影響上方金額）</div>

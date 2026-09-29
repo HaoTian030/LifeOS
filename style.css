@@ -653,18 +653,63 @@ h1{
 
 /* ============ 財務：資產總覽 ============ */
 .finance-summary {
+    /* 資產摘要現在放在可運用資金面板左側，排法跟右邊「下月固定支出提醒」清單對稱：
+       左標籤、右數字，淨資產當作結果列，上方多一條分隔線（總資產 − 總負債 = 淨資產）。 */
     display: flex;
-    flex-wrap: wrap;
-    column-gap: 16px;
-    row-gap: 4px;
-    margin-bottom: 15px;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed #374151;
+}
+
+.finance-summary p {
+    margin: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.finance-summary p span:first-child {
+    color: #9ca3af;
+    font-size: 13px;
+}
+
+.finance-summary-amount {
+    color: #f3f4f6;
+    font-weight: 700;
+    font-size: 17px;
+    flex-shrink: 0;
+}
+
+.finance-summary p.finance-summary-net {
+    border-top: 1px solid #374151;
+    margin-top: 4px;
+    padding-top: 8px;
+}
+
+.finance-summary-net span:first-child {
+    color: #d1d5db;
     font-weight: 600;
 }
 
-/* 三行摘要換行時，瀏覽器預設的 <p> 上下邊距會疊加成很大的空白間隔，
-   這裡歸零、改用上面的 row-gap 統一控制間距。 */
-.finance-summary p {
-    margin: 0;
+.finance-summary-net .finance-summary-amount {
+    color: #fbbf24;
+}
+
+.finance-forecast-left {
+    min-width: 0;
+}
+
+@media (min-width: 768px) {
+    .finance-forecast-left {
+        flex: 1;
+    }
+
+    .finance-summary-amount {
+        font-size: 20px;
+    }
 }
 
 .finance-input-row {
@@ -2199,6 +2244,80 @@ button.finance-drag-handle {
     font-size: 12px;
     color: #6b7280;
     margin: -4px 0 12px;
+}
+
+/* 🎯 帳戶分配管理彈窗的單行項目（方案X）：以下規則全部限定在
+   .finance-budget-account-items 底下或使用 finance-budget-manage-* 新 class，
+   因為 .finance-budget-item / -status 同時也被主畫面帳戶卡片的分配面板使用，不能直接改。 */
+.finance-budget-account-items .finance-budget-item {
+    margin-bottom: 0;
+    padding: 6px 0;
+    border-bottom: 1px solid #2b3648;
+}
+
+.finance-budget-account-items .finance-budget-item:last-child {
+    border-bottom: none;
+}
+
+.finance-budget-manage-row {
+    gap: 10px;
+    margin-bottom: 0;
+    font-size: 14px;
+}
+
+.finance-budget-manage-label {
+    flex: 1;
+    min-width: 0;
+    word-break: break-word;
+    font-weight: 600;
+    color: #f3f4f6;
+}
+
+.finance-budget-manage-meta {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.finance-budget-manage-actions {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.finance-budget-manage-actions .finance-drag-handle {
+    padding: 8px 12px;
+    font-size: 16px;
+}
+
+.finance-budget-manage-menu {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: flex;
+    gap: 6px;
+    padding: 6px;
+    background: #1f2937;
+    border: 1px solid #374151;
+    border-radius: 8px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+    z-index: 15;
+}
+
+.finance-budget-manage-menu button {
+    padding: 6px 10px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    background: #374151;
+    color: #f3f4f6;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.finance-budget-manage-menu button:hover {
+    background: #4b5563;
 }
 
 .finance-budget-account-group .finance-budget-item-row {

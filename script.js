@@ -4131,8 +4131,20 @@ function buildBudgetItemsListForAccount(account, items) {
     row.className = "finance-budget-item";
     row.dataset.budgetItemId = item.id;
 
+    // 版面（方案X，見討論記錄）：每個項目單行——名稱在左、目標/週期在右，最右側是
+    // 「把手 + ⋯」，跟 🔧 帳戶管理模式的排法一致。歸零/編輯/刪除平常很少用，
+    // 收進「⋯」點開才顯示（浮動選單蓋在把手+⋯上面），項目高度比原本兩行式少一半。
+    // 這裡仍然只負責「調整規劃結構」，不顯示進度條（進度看主畫面的帳戶卡片）。
     const topRow = document.createElement("div");
-    topRow.className = "finance-budget-item-row";
+    topRow.className = "finance-budget-item-row finance-budget-manage-row";
+
+    const label = document.createElement("span");
+    label.className = "finance-budget-manage-label";
+    label.textContent = item.label;
+
+    const meta = document.createElement("span");
+    meta.className = "finance-budget-item-status finance-budget-manage-meta";
+    meta.textContent = `目標 $${Math.round(item.planned_amount).toLocaleString()} · ${item.cycle === "monthly" ? "每月固定" : "累積儲蓄"}`;
 
     // 拖曳排序：目前只能在同一個帳戶內部調整順序（見討論記錄），跨帳戶搬項目
     // 還是要用「編輯」改帳戶欄位——這是這輪刻意先控制的範圍，不是技術做不到，
@@ -4145,26 +4157,33 @@ function buildBudgetItemsListForAccount(account, items) {
     dragHandle.setAttribute("aria-label", "按住拖曳排序");
     attachFinanceBudgetItemDragHandlers(dragHandle, row);
 
-    const label = document.createElement("span");
-    label.textContent = item.label;
-
-    const leftWrap = document.createElement("div");
-    leftWrap.className = "finance-budget-item-label-wrap";
-    leftWrap.appendChild(dragHandle);
-    leftWrap.appendChild(label);
-
-    const meta = document.createElement("span");
-    meta.className = "finance-budget-item-status";
-    meta.textContent = `目標 $${Math.round(item.planned_amount).toLocaleString()} · ${item.cycle === "monthly" ? "每月固定" : "累積儲蓄"}`;
+    const moreToggle = document.createElement("button");
+    moreToggle.type = "button";
+    moreToggle.className = "finance-item-more-toggle";
+    moreToggle.textContent = "⋯";
+    moreToggle.title = "更多操作";
+    moreToggle.setAttribute("aria-label", "更多操作");
 
     const actions = document.createElement("div");
-    actions.className = "finance-budget-item-actions";
+    actions.className = "finance-budget-manage-actions";
+
+    // 浮動選單以 actions 容器（把手+⋯）當定位錨點，蓋住原本的按鈕，
+    // 跟 🔧 帳戶管理模式同一套做法，位置不會因為所在欄位不同而跑掉。
+    const menu = document.createElement("div");
+    menu.className = "finance-budget-manage-menu";
+    menu.style.display = "none";
+
+    function closeMenu() {
+      menu.style.display = "none";
+      if (currentlyOpenAccountActionsPopover === menu) currentlyOpenAccountActionsPopover = null;
+    }
 
     if (item.cycle !== "monthly") {
       const resetBtn = document.createElement("button");
       resetBtn.type = "button";
       resetBtn.textContent = "歸零";
       resetBtn.addEventListener("click", async function () {
+        closeMenu();
         if (!window.confirm(`確定要把「${item.label}」的累積進度歸零嗎？（目前是 $${Math.round(item.accumulated_amount || 0).toLocaleString()}）`)) return;
         const ok = await updateFinanceBudgetItem(item.id, { accumulated_amount: 0 });
         if (!ok) return;
@@ -4172,13 +4191,14 @@ function buildBudgetItemsListForAccount(account, items) {
         renderFinanceBudgetModal();
         renderFinanceAccounts();
       });
-      actions.appendChild(resetBtn);
+      menu.appendChild(resetBtn);
     }
 
     const editBtn = document.createElement("button");
     editBtn.type = "button";
     editBtn.textContent = "編輯";
     editBtn.addEventListener("click", function () {
+      closeMenu();
       // 編輯表單放在第一層的「管理資金分配資料庫」彈窗裡，如果現在在第二層的
       // 帳戶分配管理彈窗，要先關掉它，不然表單會被壓在底下看不到
       // （見討論記錄：兩層彈窗共用同一個編輯表單，避免重複維護兩份）。
@@ -4201,6 +4221,7 @@ function buildBudgetItemsListForAccount(account, items) {
     deleteBtn.type = "button";
     deleteBtn.textContent = "刪除";
     deleteBtn.addEventListener("click", async function () {
+      closeMenu();
       if (!window.confirm(`確定要刪除「${item.label}」這個分配項目嗎？已經記過的交易不會被刪除，只是會失去對應的分配項目。`)) return;
       const ok = await deleteFinanceBudgetItem(item.id);
       if (!ok) return;
@@ -4209,14 +4230,29 @@ function buildBudgetItemsListForAccount(account, items) {
       renderFinanceAccounts();
     });
 
-    actions.appendChild(editBtn);
-    actions.appendChild(deleteBtn);
+    menu.appendChild(editBtn);
+    menu.appendChild(deleteBtn);
 
-    topRow.appendChild(leftWrap);
+    // 同時間只允許一個浮動選單展開（跟 🔧 共用同一個追蹤變數與「點外面自動收合」邏輯）。
+    moreToggle.addEventListener("click", function (event) {
+      event.stopPropagation();
+      const isHidden = menu.style.display === "none";
+      if (currentlyOpenAccountActionsPopover && currentlyOpenAccountActionsPopover !== menu) {
+        currentlyOpenAccountActionsPopover.style.display = "none";
+      }
+      menu.style.display = isHidden ? "flex" : "none";
+      currentlyOpenAccountActionsPopover = isHidden ? menu : null;
+    });
+
+    actions.appendChild(dragHandle);
+    actions.appendChild(moreToggle);
+    actions.appendChild(menu);
+
+    topRow.appendChild(label);
     topRow.appendChild(meta);
+    topRow.appendChild(actions);
 
     row.appendChild(topRow);
-    row.appendChild(actions);
     itemsContainer.appendChild(row);
   });
 
@@ -5034,9 +5070,9 @@ function renderFinanceAccounts() {
   const totalLiabilities = liabilities.reduce((sum, account) => sum + account.balance, 0);
   financeNetWorth = totalAssets - totalLiabilities;
 
-  financeTotalAssetsText.innerText = `總資產：$${totalAssets.toLocaleString()}`;
-  financeTotalLiabilitiesText.innerText = `總負債：$${totalLiabilities.toLocaleString()}`;
-  financeNetWorthText.innerText = `淨資產：$${financeNetWorth.toLocaleString()}`;
+  financeTotalAssetsText.innerText = `$${totalAssets.toLocaleString()}`;
+  financeTotalLiabilitiesText.innerText = `$${totalLiabilities.toLocaleString()}`;
+  financeNetWorthText.innerText = `$${financeNetWorth.toLocaleString()}`;
 
   updatePlayerPanel();
   refreshFinanceForecastPanel();
