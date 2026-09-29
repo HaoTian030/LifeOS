@@ -102,6 +102,11 @@ h1{
     cursor: pointer;
 }
 
+/* 暫時隱藏的分頁（個人狀態、Notion）：只藏導覽按鈕，卡片與邏輯完整保留，拿掉 HTML 的 hidden 屬性即可恢復。 */
+.tab-nav-button[hidden] {
+    display: none;
+}
+
 .tab-nav-icon {
     font-size: 18px;
 }

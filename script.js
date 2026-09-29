@@ -1893,9 +1893,9 @@ let financeTxPresets = [];
 let selectedTxType = "expense";
 
 const DEMO_FINANCE_TRANSACTIONS = [
-  { id: "demo-tx-1", type: "income", account_id: "demo-finance-1", from_account_id: null, to_account_id: null, amount: 52000, category: "薪資", tag: "收入", occurred_on: new Date().toISOString().split("T")[0] },
-  { id: "demo-tx-2", type: "expense", account_id: "demo-finance-1", from_account_id: null, to_account_id: null, amount: 3000, category: "日本旅費預留", tag: "旅遊", occurred_on: new Date().toISOString().split("T")[0] },
-  { id: "demo-tx-3", type: "transfer", account_id: null, from_account_id: "demo-finance-1", to_account_id: "demo-finance-4", amount: 8200, category: "信用卡結算", tag: "信用卡", occurred_on: new Date().toISOString().split("T")[0] }
+  { id: "demo-tx-1", type: "income", account_id: "demo-finance-1", from_account_id: null, to_account_id: null, amount: 52000, category: "薪資", tag: "收入", occurred_on: todayDateString() },
+  { id: "demo-tx-2", type: "expense", account_id: "demo-finance-1", from_account_id: null, to_account_id: null, amount: 3000, category: "日本旅費預留", tag: "旅遊", occurred_on: todayDateString() },
+  { id: "demo-tx-3", type: "transfer", account_id: null, from_account_id: "demo-finance-1", to_account_id: "demo-finance-4", amount: 8200, category: "信用卡結算", tag: "信用卡", occurred_on: todayDateString() }
 ];
 
 const financeTxTypeButtons = document.querySelectorAll("#finance-tx-type-toggle .finance-tx-type-button");
@@ -2209,7 +2209,7 @@ function refreshFinanceTxAccountOptions() {
 // 日期欄位預設帶入今天，仍可手動編輯（供事後補登用）。
 function setFinanceTxDateToday() {
   if (!financeTxDateInput) return;
-  financeTxDateInput.value = new Date().toISOString().split("T")[0];
+  financeTxDateInput.value = todayDateString();
 }
 
 async function loadFinanceAccountsFromSupabase() {
@@ -2452,7 +2452,8 @@ function getBudgetItemPaidAmount(item) {
 }
 
 function getCurrentYearMonth() {
-  return new Date().toISOString().slice(0, 7);
+  // 用本地日期（todayDateString），不用 toISOString——後者是 UTC，台灣時區每天 00:00–08:00 會算成前一天。
+  return todayDateString().slice(0, 7);
 }
 
 // 這個帳戶裡，「已經被劃定用途、不算自由的錢」一共多少：
@@ -2661,7 +2662,7 @@ function renderFinanceTxPresetButtons() {
         amount: preset.amount,
         category: preset.category,
         tag: preset.tag,
-        occurredOn: new Date().toISOString().split("T")[0]
+        occurredOn: todayDateString()
       });
       button.disabled = false;
     });
@@ -2975,7 +2976,7 @@ async function submitFinanceTransaction({ type, accountId, fromAccountId, toAcco
 async function addFinanceTransaction() {
   const type = selectedTxType;
   const amountRaw = financeTxAmountInput.value.trim();
-  const occurredOn = financeTxDateInput.value || new Date().toISOString().split("T")[0];
+  const occurredOn = financeTxDateInput.value || todayDateString();
   const category = financeTxCategoryInput.value.trim();
   const tag = financeTxTagInput.value.trim();
   // 支出可能連結「每月固定」型分配項目（付房租）；收入／轉帳可能連結「累積儲蓄」型
@@ -3665,7 +3666,7 @@ function refreshFinanceTxFilterOptions() {
     option.textContent = formatFinanceTxMonthLabel(monthKey);
     financeTxFilterMonth.appendChild(option);
   });
-  const todayMonthKey = getFinanceTxMonthKey(new Date().toISOString().split("T")[0]);
+  const todayMonthKey = getFinanceTxMonthKey(todayDateString());
   financeTxFilterMonth.value = months.includes(todayMonthKey) ? todayMonthKey : "all";
 
   // 帳戶篩選清單直接用目前的 financeAccounts（資產+負債都算），
@@ -4036,15 +4037,27 @@ const FINANCE_BUDGET_FREQUENCY_LABELS = {
 // 依「原本排定的扣款日」（不是使用者確認的當天）往後推算下一次，銀行偶發延遲一兩天
 // 扣款也不會讓下次日期跟著飄移——使用者拿實際案例驗證過這個推算基準是對的（見討論記錄）。
 function addIntervalToDate(dateStr, frequency) {
-  const d = new Date(dateStr + "T00:00:00");
+  const parts = dateStr.split("-").map(Number);
+  let year = parts[0];
+  let month = parts[1] - 1; // 0-based
+  const day = parts[2];
+
   switch (frequency) {
-    case "monthly": d.setMonth(d.getMonth() + 1); break;
-    case "quarterly": d.setMonth(d.getMonth() + 3); break;
-    case "semiannual": d.setMonth(d.getMonth() + 6); break;
-    case "annual": d.setFullYear(d.getFullYear() + 1); break;
+    case "monthly": month += 1; break;
+    case "quarterly": month += 3; break;
+    case "semiannual": month += 6; break;
+    case "annual": year += 1; break;
     default: return null;
   }
-  return d.toISOString().slice(0, 10);
+
+  // 純用年月日數字運算，不經過 Date 轉 UTC 字串（toISOString 在台灣時區會少一天）。
+  // 目標月份沒有這一天（例如 1/31 推一個月）時，取該月最後一天，避免 JS 溢位成隔月 3 號。
+  year += Math.floor(month / 12);
+  month = ((month % 12) + 12) % 12;
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const safeDay = Math.min(day, lastDay);
+
+  return `${year}-${String(month + 1).padStart(2, "0")}-${String(safeDay).padStart(2, "0")}`;
 }
 
 // 過期的徽章改成明顯的可點擊按鈕：點下去確認「這筆真的扣了嗎」，確認後一次做完
