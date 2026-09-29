@@ -366,13 +366,17 @@ h1{
         min-width: 0;
     }
 
-    .finance-forecast-reminder {
+    /* 用 .finance-forecast-panel 提高權重：原本這條規則跟檔案後面的基本樣式
+       .finance-forecast-reminder（margin-top:10px、border-top）權重一樣，
+       後面的會蓋掉前面的，導致桌面版右側虛線框比左邊低了 10px（見討論記錄）。
+       這裡的宣告就是桌面版實際想呈現的樣子：上緣對齊左欄、保留上方與左側虛線。 */
+    .finance-forecast-panel .finance-forecast-reminder {
         flex: 1;
         min-width: 0;
-        border-top: none;
+        border-top: 1px dashed #374151;
         border-left: 1px dashed #374151;
         margin-top: 0;
-        padding-top: 0;
+        padding-top: 10px;
         padding-left: 28px;
     }
 
@@ -2318,6 +2322,34 @@ button.finance-drag-handle {
 
 .finance-budget-manage-menu button:hover {
     background: #4b5563;
+}
+
+/* 🎯 分配彈窗在寬螢幕時放大字體與行距，填補中間的空白——
+   只放大既有文字，不新增任何資訊（進度條與已存金額仍然只在主畫面顯示，
+   維持「彈窗只負責調整規劃結構」的分工，見討論記錄）。手機寬度維持原本大小，
+   因為名稱、目標金額、把手、⋯ 要擠在同一行，放大會讓名稱被擠到換行。 */
+@media (min-width: 768px) {
+    .finance-budget-account-items .finance-budget-item {
+        padding: 11px 0;
+    }
+
+    .finance-budget-manage-label {
+        font-size: 17px;
+    }
+
+    .finance-budget-manage-meta {
+        font-size: 14px;
+    }
+
+    .finance-budget-manage-actions .finance-drag-handle {
+        padding: 9px 14px;
+        font-size: 17px;
+    }
+
+    .finance-budget-manage-actions .finance-item-more-toggle {
+        font-size: 20px;
+        padding: 4px 10px;
+    }
 }
 
 .finance-budget-account-group .finance-budget-item-row {
