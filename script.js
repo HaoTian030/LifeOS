@@ -4407,6 +4407,10 @@ function attachFinanceBudgetItemDragHandlers(handle, row) {
 
 // 放開拖曳後，照這個帳戶群組目前的實際順序，重新配給連續的 sort_order（0, 1, 2...），
 // 只把真的有變動的項目寫回 Supabase（跟帳戶排序用同一套「只寫有變動的」原則）。
+// 先寫資料庫、確認每一筆都成功才更新本機的 sort_order：以前是先改本機再寫資料庫，
+// 而且沒檢查寫入結果，一旦失敗就會「畫面看起來排好了、資料庫其實沒存到」，
+// 本機值又已經等於新順序，之後的拖曳會誤以為不用再寫，問題就一直留著。
+// 任何一筆失敗就提示使用者，並重新讀取資料庫，讓畫面回到資料庫的真實狀態。
 async function finalizeFinanceBudgetItemReorder(container) {
   const orderedIds = Array.from(container.children)
     .map(function (el) { return el.dataset ? el.dataset.budgetItemId : null; })
@@ -4416,16 +4420,27 @@ async function finalizeFinanceBudgetItemReorder(container) {
   orderedIds.forEach(function (id, index) {
     const item = financeBudgetItems.find(function (b) { return b.id === id; });
     if (item && item.sort_order !== index) {
-      item.sort_order = index;
-      changed.push(item);
+      changed.push({ item: item, nextOrder: index });
     }
   });
 
-  if (changed.length === 0 || !currentUser) return;
+  if (changed.length === 0) return;
 
-  await Promise.all(changed.map(function (item) {
-    return supabaseClient.from("finance_budget_items").update({ sort_order: item.sort_order }).eq("id", item.id);
-  }));
+  if (currentUser) {
+    const results = await Promise.all(changed.map(function (c) {
+      return supabaseClient.from("finance_budget_items").update({ sort_order: c.nextOrder }).eq("id", c.item.id);
+    }));
+    const failed = results.filter(function (r) { return r && r.error; });
+    if (failed.length > 0) {
+      console.log("儲存分配項目排序失敗", failed.map(function (r) { return r.error; }));
+      alert("排序儲存失敗，已重新讀取目前的順序，請稍後再試一次。");
+      await loadFinanceBudgetItemsFromSupabase();
+      renderFinanceAccounts();
+      return;
+    }
+  }
+
+  changed.forEach(function (c) { c.item.sort_order = c.nextOrder; });
 }
 
 // 分配彈窗排版：桌面版曾經試過 CSS Grid（固定兩欄，高度對不齊會留空白）跟 CSS 多欄流排版
@@ -4770,7 +4785,13 @@ function buildFinanceAccountItem(account, manageMode) {
     info.classList.add("finance-item-info-expandable");
     info.addEventListener("click", function (event) {
       event.stopPropagation();
-      openFinanceAccountDetailModal(account, accountBudgetItems);
+      // 點擊當下才重新取一次最新排序：accountBudgetItems 是「畫面繪製那一刻」排好存下來的，
+      // 之後在 🎯 分配彈窗拖曳調整順序時，畫面不會重畫，這份舊清單就會一直是舊順序
+      // （症狀：排序改了，累計面板要等到別的操作觸發重繪才跟上）。
+      const latestItems = financeBudgetItems
+        .filter(function (b) { return b.account_id === account.id && b.active; })
+        .sort(function (a, b) { return (a.sort_order || 0) - (b.sort_order || 0); });
+      openFinanceAccountDetailModal(account, latestItems);
     });
   }
 

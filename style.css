@@ -376,8 +376,22 @@ h1{
         border-top: 1px dashed #374151;
         border-left: 1px dashed #374151;
         margin-top: 0;
-        padding-top: 10px;
+        padding-top: 0;
         padding-left: 28px;
+    }
+
+    /* 標題列對齊：右側「📌 下月固定支出提醒」標題要跟左側「可運用資金」同一條水平線，
+       橫虛線保留在標題上方（見討論記錄）。左列高度固定下限 26px，右側標題行高 26px
+       （上框線 1px 抵銷文字中心的半像素差），兩邊「第一行文字」的中心點落在同一高度。
+       左列的字更大所以本來就比較高，用「下限」而不是固定高度，字體比較大的環境也不會被切到。 */
+    .finance-forecast-panel .finance-forecast-main {
+        min-height: 26px;
+    }
+
+    .finance-forecast-panel .finance-forecast-reminder-title {
+        /* 用行高而不是 flex 置中：窄一點的桌面寬度標題文字會換成兩行，
+           行高做法讓「第一行」永遠對齊左邊的標題，換行也不會讓位置跑掉。 */
+        line-height: 26px;
     }
 
     /* 帳戶/負債清單改成多欄排版：欄位變窄之後，名稱/金額/用途不會再被拉得很開。
